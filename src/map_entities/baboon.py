@@ -16,7 +16,7 @@ class Baboon (Point2D):
         super().__init__(x, y, color)
 
     def __str__(self):
-        return f"Baboon({self[0]}, {self[1]}, color={self.color})"
+        return f"Baboon({self._coordinates[0]}, {self._coordinates[1]}, color={self.color})"
 
     def __repr__(self):
-        return f"Baboon({self[0]}, {self[1]}, color={self.color})"
+        return f"Baboon({self._coordinates[0]}, {self._coordinates[1]}, color={self.color})"
