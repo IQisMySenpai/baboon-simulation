@@ -5,7 +5,7 @@ import numpy as np
 import random
 from tqdm import tqdm
 from simulation.sim_output import SimOutput
-
+from supporting.angular_distribution import angular_distribution, sample_from_distribution
 
 class Simulator:
     def __init__(self, total_steps: int, seed: int = 42, baboons: Optional[List[Baboon]] = None):
@@ -27,7 +27,22 @@ class Simulator:
         self.baboons = baboons if baboons else []
 
     def calculate_baboon_move(self, baboon: Baboon) -> np.ndarray:
-        return np.random.uniform(-1, 1, size=2)
+        angles = []
+        sigmas = []
+
+        for other_baboon in self.baboons:
+            if other_baboon != baboon:
+                angles.append(baboon.angle(other_baboon))
+                sigmas.append(min(0.5, max(0.1, baboon.distance(other_baboon) / 20)))
+
+        theta_grid, probs = angular_distribution(angles, sigmas)
+        direction = sample_from_distribution(theta_grid, probs)
+
+        # Calculate the new position based on the direction
+        move = np.ndarray((2,), dtype=float)
+        move[0], move[1] = np.cos(direction) * 0.1, np.sin(direction) * 0.1 # TODO: 0.1 is the step size
+
+        return move
 
     def get_baboon_positions(self) -> np.ndarray:
         return np.array([b.coordinates for b in self.baboons])
