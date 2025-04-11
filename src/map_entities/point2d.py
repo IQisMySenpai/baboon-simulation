@@ -29,7 +29,7 @@ class Point2D:
         :param other: Another Point2D object
         :return: True if coordinates are equal, False otherwise
         """
-        if issubclass(other, Point2D):
+        if isinstance(other, Point2D):
             return np.array_equal(self._coordinates, other.coordinates)
         return False
 
@@ -80,7 +80,7 @@ class Point2D:
         """
         Add two Point2D objects together.
         """
-        if not issubclass(other, Point2D):
+        if not isinstance(other, Point2D):
             raise TypeError("Only Point2D objects can be added.")
 
         if self._coordinates.shape != other.coordinates.shape:
@@ -94,7 +94,7 @@ class Point2D:
         :param other: Another Point2D object
         :return: Result of the subtraction as a numpy array
         """
-        if not issubclass(other, Point2D):
+        if not isinstance(other, Point2D):
             raise TypeError("Only Point2D objects can be subtracted.")
 
         if self._coordinates.shape != other.coordinates.shape:
@@ -116,6 +116,6 @@ class Point2D:
         :param other: Another Point2D object
         :return: Angle to the other point in radians
         """
-        delta_y = other[1] - self[1]
-        delta_x = other[0] - self[0]
+        delta_y = other.y - self.y
+        delta_x = other.x - self.x
         return np.arctan2(delta_y, delta_x)
