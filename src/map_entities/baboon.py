@@ -1,6 +1,7 @@
 from map_entities.point2d import Point2D
 
-class Baboon (Point2D):
+
+class Baboon(Point2D):
     """
     A class representing a baboon in a 2D space.
     Inherits from Point2D to leverage its functionalities.

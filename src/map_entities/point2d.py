@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Point2D:
     """
     A class representing a 2D point in space.
@@ -74,7 +75,6 @@ class Point2D:
         if move.shape != (2,):
             raise ValueError("Move vector must be 2D.")
         self._coordinates = np.add(self._coordinates, move)
-
 
     def __add__(self, other) -> np.ndarray:
         """

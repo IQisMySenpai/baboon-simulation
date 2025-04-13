@@ -56,7 +56,7 @@ class Simulator:
         """
         self.current_step += 1
 
-        moves : List[np.ndarray] = []
+        moves: List[np.ndarray] = []
 
         # Calculate the move for each baboon so that we can update them all at once
         for baboon in self.baboons:
@@ -85,4 +85,4 @@ class Simulator:
                 output.update(positions= self.get_baboon_positions(), colors=self.get_baboon_colors())
 
         if output:
-            output.save('output.mp4')
+            output.save('../outputs/output.mp4')
