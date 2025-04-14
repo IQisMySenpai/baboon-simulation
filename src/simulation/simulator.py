@@ -1,30 +1,36 @@
-from typing import List, Optional
+from typing import Iterable, List, Optional
+import numpy.typing as npt
 from map_entities.baboon import Baboon
-from map_entities.point2d import Point2D
 import numpy as np
-import random
 from tqdm import tqdm
 from simulation.sim_output import SimOutput
-from supporting.angular_distribution import angular_distribution, sample_from_distribution
+from supporting.angular_distribution import (
+    angular_distribution, sample_from_distribution
+)
+
 
 class Simulator:
-    def __init__(self, total_steps: int, seed: int = 42, baboons: Optional[List[Baboon]] = None):
+    def __init__(
+        self,
+        total_steps: int,
+        initial_baboons: npt.NDArray[np.float64],
+    ):
         """
         Initialize the simulator with a given number of simulation steps.
-        :param total_steps: Total number of simulation steps
+
+        Args:
+            total_steps: Total number of simulation steps
+            seed: Random seed for reproducibility
+            initial_baboons: (n_baboons, 2)-np.array with initial positions
+                of baboons. 
         """
 
         self.baboons: List[Baboon] = []
         self.current_step = 0
         self.total_steps = total_steps
 
-        # Set the random seed for reproducibility
-        self.seed = seed
-        random.seed(seed)
-        np.random.seed(seed)
-
         # Initialize baboons list (if not provided)
-        self.baboons = baboons if baboons else []
+        self.baboons = baboons if baboons else list()
 
     def calculate_baboon_move(self, baboon: Baboon) -> np.ndarray:
         angles = []
@@ -36,7 +42,7 @@ class Simulator:
                 sigmas.append(min(0.5, max(0.1, baboon.distance(other_baboon) / 20)))
 
         theta_grid, probs = angular_distribution(angles, sigmas)
-        direction = sample_from_distribution(theta_grid, probs)
+        direction = sample_from_distribution(self.rng, theta_grid, probs)
 
         # Calculate the new position based on the direction
         move = np.ndarray((2,), dtype=float)
@@ -70,10 +76,18 @@ class Simulator:
             # Update the baboon's position
             baboon.move(moves[i])
 
-    def run(self, output: Optional[SimOutput] = None):
+    def run(
+        self,
+        output: Optional[SimOutput] = None,
+        seed: Optional[int] = None,
+    ):
         """
         Run the simulation for the specified number of steps.
         """
+        # Use random generator for reproducibility
+        # recommended for numpy rather thatn using random.seed
+        self.rng = np.random.default_rng(seed)  # Create a random generator
+
         for i in tqdm(range(self.total_steps), desc="Simulation Progress"):
             assert self.current_step < self.total_steps, "Simulation has already completed"
             assert self.current_step == i, "Current step should match the loop index"
@@ -82,7 +96,7 @@ class Simulator:
             self.step()
 
             if output:
-                output.update(positions= self.get_baboon_positions(), colors=self.get_baboon_colors())
+                output.update(positions=self.get_baboon_positions(), colors=self.get_baboon_colors())
 
         if output:
             output.save('../outputs/output.mp4')

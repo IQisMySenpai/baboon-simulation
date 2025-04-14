@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def angular_distribution(points, sigmas, resolution=1000):
     theta_grid = np.linspace(0, 2 * np.pi, resolution)
     probs = np.zeros_like(theta_grid)
@@ -11,11 +12,12 @@ def angular_distribution(points, sigmas, resolution=1000):
     probs /= np.trapz(probs, theta_grid)  # normalize
     return theta_grid, probs
 
-def sample_from_distribution(theta_grid, probs, n_samples=1):
+
+def sample_from_distribution(rng, theta_grid, probs, n_samples=1):
     cdf = np.cumsum(probs)
     cdf /= cdf[-1]  # normalize CDF
 
     # Uniform samples and interpolation
-    random_vals = np.random.rand(n_samples)
+    random_vals = rng.random(n_samples)
     sampled_thetas = np.interp(random_vals, cdf, theta_grid)
     return sampled_thetas
