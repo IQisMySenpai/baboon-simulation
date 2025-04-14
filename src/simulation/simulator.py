@@ -1,88 +1,112 @@
-from typing import List, Optional
-from map_entities.baboon import Baboon
-from map_entities.point2d import Point2D
+from typing import Optional
+import numpy.typing as npt
 import numpy as np
-import random
 from tqdm import tqdm
-from simulation.sim_output import SimOutput
-from supporting.angular_distribution import angular_distribution, sample_from_distribution
+from simulation_types.documentation import DriftType, DiffusionType
+
 
 class Simulator:
-    def __init__(self, total_steps: int, seed: int = 42, baboons: Optional[List[Baboon]] = None):
+    """
+    Simulator class for baboon movement simulation.
+
+    This class is responsible for simulating the movement of baboons
+    based on a given Stochastic Differential Equation (SDE) model.
+    In particular, it implements the Euler scheme for the SDE.
+    Upon initialization, it takes the parameters for the Euler scheme,
+    including the drift and diffusion functions.
+
+    See simulation_types/documentation.py for more details on the object
+    meanings and SDE formulation of the problem.
+
+    Parameters:
+        total_time_steps: Total number of simulation steps.
+        initial_baboons: Initial positions of baboons. Shape: (n_baboons, 2).
+        dt: Time step size. Default is 1.
+        seed: Random seed for reproducibility. Default is 0.
+        drift: Drift function for the SDE. Default is None.
+        diffusion: Diffusion function for the SDE. Default is None.
+    Parameters set after "run" method is called:
+        baboons_trajectory_ (np.ndarray): Full trajectory of baboons.
+            Shape: (total_steps + 1, n_baboons, 2).
+    """
+    total_steps: int
+    initial_baboons: npt.NDArray[np.float64]
+    dt: float = 1
+    seed: int = 0
+    drift: Optional[DriftType] = None
+    diffusion: Optional[DiffusionType] = None
+
+    # Parameters set after "run" method is called
+    baboons_trajectory_: npt.NDArray[np.float64]
+
+    def __init__(
+        self,
+        total_time_steps: int,
+        initial_baboons: npt.NDArray[np.float64],
+        dt: float = 1,
+        drift: Optional[DriftType] = None,
+        diffusion: Optional[DiffusionType] = None,
+        seed: int = 0,
+    ):
         """
         Initialize the simulator with a given number of simulation steps.
-        :param total_steps: Total number of simulation steps
         """
-
-        self.baboons: List[Baboon] = []
-        self.current_step = 0
-        self.total_steps = total_steps
-
-        # Set the random seed for reproducibility
+        self.total_steps = total_time_steps
+        self.initial_baboons = initial_baboons
+        self.dt = dt
+        self.drift = drift
+        self.diffusion = diffusion
         self.seed = seed
-        random.seed(seed)
-        np.random.seed(seed)
 
-        # Initialize baboons list (if not provided)
-        self.baboons = baboons if baboons else []
+        assert initial_baboons.shape[1] == 2, (
+            "Initial baboons must have shape (n_baboons, 2)"
+        )
+        assert diffusion is None, (
+            "Diffusion is not implemented yet. Set diffusion=None."
+        )
+        if self.drift is None:
+            self.drift = lambda x, _: np.zeros_like(initial_baboons)
 
-    def calculate_baboon_move(self, baboon: Baboon) -> np.ndarray:
-        angles = []
-        sigmas = []
-
-        for other_baboon in self.baboons:
-            if other_baboon != baboon:
-                angles.append(baboon.angle(other_baboon))
-                sigmas.append(min(0.5, max(0.1, baboon.distance(other_baboon) / 20)))
-
-        theta_grid, probs = angular_distribution(angles, sigmas)
-        direction = sample_from_distribution(theta_grid, probs)
-
-        # Calculate the new position based on the direction
-        move = np.ndarray((2,), dtype=float)
-        move[0], move[1] = np.cos(direction) * 0.1, np.sin(direction) * 0.1 # TODO: 0.1 is the step size
-
-        return move
-
-    def get_baboon_positions(self) -> np.ndarray:
-        return np.array([b.coordinates for b in self.baboons])
-
-    def get_baboon_colors(self) -> list:
-        return [b.color for b in self.baboons]
-
-    def step(self):
+    def run(
+        self,
+        seed: Optional[int] = None,
+    ) -> npt.NDArray[np.float64]:
         """
-        Perform a single simulation step.
+        Run the Euler scheme and return full trajectories.
+
+        This method performs the simulation of baboon movements using the
+        Euler scheme based on the provided drift and diffusion functions.
+        After the simulation, it returns the full trajectory of baboons.
+        self.baboons_trajectory_ is also updated with the full trajectory.
+
+        Args:
+            seed (int, optional): Random seed for reproducibility. If None,
+                the self.seed is used. Only specify this seed if you want to
+                override the use of self.seed. In any case, self.seed is not
+                modified.
+
+        Returns:
+            baboons_trajectory: Full trajectory of baboons. Shape:
+                (total_steps + 1, n_baboons, 2)
         """
-        self.current_step += 1
+        # Use random generator for reproducibility
+        # recommended for numpy rather thatn using random.seed
+        rng = np.random.default_rng(seed)  # Create a random generator
 
-        moves: List[np.ndarray] = []
+        baboons_trajectory = np.zeros(
+            (self.total_steps + 1, self.initial_baboons.shape[0], 2),
+            dtype=np.float64,
+        )
+        baboons_trajectory[0] = self.initial_baboons
 
-        # Calculate the move for each baboon so that we can update them all at once
-        for baboon in self.baboons:
-            moves.append(self.calculate_baboon_move(baboon))
-
-        assert len(moves) == len(self.baboons), "The number of moves should match the number of baboons"
-
-        # Update the position of each baboon
-        for i in range(len(self.baboons)):
-            baboon = self.baboons[i]
-            # Update the baboon's position
-            baboon.move(moves[i])
-
-    def run(self, output: Optional[SimOutput] = None):
-        """
-        Run the simulation for the specified number of steps.
-        """
-        for i in tqdm(range(self.total_steps), desc="Simulation Progress"):
-            assert self.current_step < self.total_steps, "Simulation has already completed"
-            assert self.current_step == i, "Current step should match the loop index"
-
-            # Perform the simulation step
-            self.step()
-
-            if output:
-                output.update(positions= self.get_baboon_positions(), colors=self.get_baboon_colors())
-
-        if output:
-            output.save('../outputs/output.mp4')
+        for i in tqdm(range(self.total_steps), desc="Euler iterations"):
+            baboons_trajectory[i + 1] = (
+                baboons_trajectory[i]
+                + self.drift(baboons_trajectory[:i + 1], rng) * self.dt
+                # + (
+                #   diffusion
+                #   * rng.normal(0, np.sqrt(self.dt), size=(self.n_baboons, 2))
+                # )
+            )
+        self.baboons_trajectory_ = baboons_trajectory
+        return baboons_trajectory
