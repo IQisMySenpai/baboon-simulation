@@ -29,20 +29,21 @@ colors: List[str]: List of colors for each baboon. (List of length M)
 The i-th baboon position is given by the following Stochastic Differential
 Equation (SDE):
 
-dx_i = f(x[:t]) dt + g(x[:t]) dW_t,
+dx_i = f(x[:t], omega) dt + g(x[:t], omega) dW_t(omega),
 
 where:
     - dx_i is the change in position of baboon i.
     - x[:t] is the full trajectory of all baboons up to time t.
         It is a (t, M, 2)-np.ndarray.
-    - f(x[:t]) is the DRIFT of the SDE.
+    - f(x[:t], omega) is the DRIFT of the SDE.
         It denotes the average change in position of baboon i.
-        This term may include a random component.
+        This term may include a random component (thus the dependency on
+        omega).
         f outputs an (M, 2)-np.ndarray.
-    - g(x[:t]) is the DIFFUSION of the SDE.
+    - g(x[:t], omega) is the DIFFUSION of the SDE.
         It denotes the random change in position of baboon i.
         g outputs an (M, J)-np.ndarray.
-    - W_t is a (Jx2-dimensional)-Wiener process (Brownian motion).
+    - W_t(omega) is a (Jx2-dimensional)-Wiener process (Brownian motion).
 
 In practice, this will be implemented with an Euler scheme:
     x[t+1] = x[t] + f(x[:t]) * dt + g(x[:t]) * dW_t,
@@ -60,3 +61,30 @@ We will use the following notation in the code:
     - x[:t] == baboons_trajectory[:t]
 
 """
+from typing import Callable
+import numpy as np
+import numpy.typing as npt
+
+# Signature for the drift and diffusion functions
+DriftType = Callable[
+    [
+        # baboons_trajectory[:t], shape (t, n_baboons, 2)
+        npt.NDArray[np.float64],
+        # random generator (this is the omega)
+        npt.random.Generator,
+    ],
+    # output of drift, shape (n_baboons, 2)
+    npt.NDArray[np.float64],
+]
+
+DiffusionType = Callable[
+    [
+        # baboons_trajectory[:t], shape (t, n_baboons, 2)
+        npt.NDArray[np.float64],
+        # random generator (this is the omega)
+        npt.random.Generator,
+    ],
+    # output of diffusion, shape (n_baboons, J)
+    npt.NDArray[np.float64],
+]
+# Jx2 is the dimension of the Wiener process
