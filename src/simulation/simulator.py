@@ -1,6 +1,6 @@
 from typing import Iterable, List, Optional
 import numpy.typing as npt
-from map_entities.baboon import Baboon
+from documentation.baboon import Baboon
 import numpy as np
 from tqdm import tqdm
 from simulation.sim_output import SimOutput
