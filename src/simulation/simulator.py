@@ -1,12 +1,8 @@
-from typing import Optional, Callable
+from typing import Optional
 import numpy.typing as npt
 import numpy as np
 from tqdm import tqdm
-from simulation.sim_output import SimOutput
-from simulation_types import DriftType, DiffusionType
-from supporting.angular_distribution import (
-    angular_distribution, sample_from_distribution
-)
+from simulation_types.documentation import DriftType, DiffusionType
 
 
 class Simulator:
@@ -23,7 +19,7 @@ class Simulator:
     meanings and SDE formulation of the problem.
 
     Parameters:
-        total_steps: Total number of simulation steps.
+        total_time_steps: Total number of simulation steps.
         initial_baboons: Initial positions of baboons. Shape: (n_baboons, 2).
         dt: Time step size. Default is 1.
         seed: Random seed for reproducibility. Default is 0.
@@ -45,7 +41,7 @@ class Simulator:
 
     def __init__(
         self,
-        total_steps: int,
+        total_time_steps: int,
         initial_baboons: npt.NDArray[np.float64],
         dt: float = 1,
         drift: Optional[DriftType] = None,
@@ -55,7 +51,7 @@ class Simulator:
         """
         Initialize the simulator with a given number of simulation steps.
         """
-        self.total_steps = total_steps
+        self.total_steps = total_time_steps
         self.initial_baboons = initial_baboons
         self.dt = dt
         self.drift = drift
@@ -106,7 +102,7 @@ class Simulator:
         for i in tqdm(range(self.total_steps), desc="Euler iterations"):
             baboons_trajectory[i + 1] = (
                 baboons_trajectory[i]
-                + self.drift(baboons_trajectory[:i], rng) * self.dt
+                + self.drift(baboons_trajectory[:i + 1], rng) * self.dt
                 # + (
                 #   diffusion
                 #   * rng.normal(0, np.sqrt(self.dt), size=(self.n_baboons, 2))

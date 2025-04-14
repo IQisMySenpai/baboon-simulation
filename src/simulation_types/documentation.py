@@ -71,7 +71,7 @@ DriftType = Callable[
         # baboons_trajectory[:t], shape (t, n_baboons, 2)
         npt.NDArray[np.float64],
         # random generator (this is the omega)
-        npt.random.Generator,
+        np.random.Generator,
     ],
     # output of drift, shape (n_baboons, 2)
     npt.NDArray[np.float64],
@@ -82,7 +82,7 @@ DiffusionType = Callable[
         # baboons_trajectory[:t], shape (t, n_baboons, 2)
         npt.NDArray[np.float64],
         # random generator (this is the omega)
-        npt.random.Generator,
+        np.random.Generator,
     ],
     # output of diffusion, shape (n_baboons, J)
     npt.NDArray[np.float64],
