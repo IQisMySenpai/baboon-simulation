@@ -22,15 +22,12 @@ class Simulator:
             total_steps: Total number of simulation steps
             seed: Random seed for reproducibility
             initial_baboons: (n_baboons, 2)-np.array with initial positions
-                of baboons. 
+                of baboons.
         """
-
-        self.baboons: List[Baboon] = []
-        self.current_step = 0
         self.total_steps = total_steps
 
         # Initialize baboons list (if not provided)
-        self.baboons = baboons if baboons else list()
+        self.initial_baboons = initial_baboons
 
     def calculate_baboon_move(self, baboon: Baboon) -> np.ndarray:
         angles = []
@@ -50,35 +47,8 @@ class Simulator:
 
         return move
 
-    def get_baboon_positions(self) -> np.ndarray:
-        return np.array([b.coordinates for b in self.baboons])
-
-    def get_baboon_colors(self) -> list:
-        return [b.color for b in self.baboons]
-
-    def step(self):
-        """
-        Perform a single simulation step.
-        """
-        self.current_step += 1
-
-        moves: List[np.ndarray] = []
-
-        # Calculate the move for each baboon so that we can update them all at once
-        for baboon in self.baboons:
-            moves.append(self.calculate_baboon_move(baboon))
-
-        assert len(moves) == len(self.baboons), "The number of moves should match the number of baboons"
-
-        # Update the position of each baboon
-        for i in range(len(self.baboons)):
-            baboon = self.baboons[i]
-            # Update the baboon's position
-            baboon.move(moves[i])
-
     def run(
         self,
-        output: Optional[SimOutput] = None,
         seed: Optional[int] = None,
     ):
         """
