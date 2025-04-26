@@ -26,14 +26,13 @@ class State(Enum):
 
 def state_driven_drift_diffusion_function(
     angle_std: float,
-    step_length: float,
+    group_influence_step_length: float,
+    random_walk_step_length: float,
+    min_follow_distance: float,
+    min_follow_step: float,
     max_follow_step: float,
-    countdown_poisson_mean: float = 20.0,
-    sigma_still: float = 0.01,
-    sigma_following: float = 0.1,
-    sigma_group_influence: float = 0.1,
-    sigma_random_walk: float = 0.5,
-    following_step_size_std: float = 0.05,
+    state_diffusion_constants: dict[State, float],
+    following_step_size_std: float = 0.2,
     following_step_size_proportion: float = 0.1,
     state_probabilities: Optional[dict[State, float]] = None,
     state_countdown_means: Optional[dict[State, float]] = None,
@@ -41,38 +40,36 @@ def state_driven_drift_diffusion_function(
     """
     Creates a drift + diffusion function where each baboon acts according to
     an internal state.
-    
+
     Each baboon can be in one of four states: following, group_influence,
-    still, or random_walk.
-    State transitions occur after a countdown, drawn from a Poisson
-    distribution.
+    still, or random_walk. State transitions occur after a countdown, drawn
+    from a Poisson distribution.
 
     Args:
         angle_std (float): Standard deviation for angular perturbations in
             group_influence state.
-        step_length (float): Base step length for group_influence and random
-            walk drift.
+        group_influence_step_length (float): Base step length for
+            group_influence.
+        random_walk_step_length (float): base step length for random walk
+            drift.
+        min_follow_distance (float): Minimum distance between two baboons for
+            one to follow the other.
+        min_follow_step (float): Minimum step size a baboon can take while
+            following another baboon.
         max_follow_step (float): Maximum step size a baboon can take while
             following another baboon.
-        countdown_poisson_mean (float): Default mean of the Poisson distribution
-            used to sample state countdowns if per-state means are not provided.
-        sigma_still (float): Diffusion coefficient for still baboons.
-        sigma_following (float): Diffusion coefficient for following baboons.
-        sigma_group_influence (float): Diffusion coefficient for baboons under
-            group influence.
-        sigma_random_walk (float): Diffusion coefficient for random walking
-            baboons.
+        state_diffusion_constants (dict[State, float]): Diffusion coefficient
+            for each state.
         following_step_size_std (float): Standard deviation of noise added to
             following step size.
         following_step_size_proportion (float): Proportion of the distance to
             the target used as a base for following step size.
-        state_probabilities (Optional[dict[State, float]]): 
+        state_probabilities (Optional[dict[State, float]]):
             A dictionary mapping each State to its probability when sampling
             new states. If None, defaults to equal probability for all states.
         state_countdown_means (Optional[dict[State, float]]):
-            Optional dictionary specifying Poisson means for each state.
-            If a state's mean is not specified, the default
-            `countdown_poisson_mean` is used.
+            Dictionary specifying Poisson means for each state.
+            Defaults to 20 for all states.
 
     Returns:
         DriftDiffusionWithStateType: A callable that computes the drift vector,
@@ -92,6 +89,13 @@ def state_driven_drift_diffusion_function(
             State.group_influence: 0.25,
             State.still: 0.25,
             State.random_walk: 0.25,
+        }
+    if state_countdown_means is None:
+        state_countdown_means = {
+            State.following: 20,
+            State.group_influence: 20,
+            State.still: 20,
+            State.random_walk: 20,
         }
     state_list = list(state_probabilities.keys())
     prob_list = list(state_probabilities.values())
@@ -119,7 +123,7 @@ def state_driven_drift_diffusion_function(
             random_walk_drift=state_bunch.random_walk_drift.copy(),
         )
 
-        # Update states based on countdown
+        # Reset baboons that have reached their countdown
         countdown_zero = (next_state.state_countdown <= 0)
         if np.any(countdown_zero):
             n_updates = np.sum(countdown_zero)
@@ -130,19 +134,31 @@ def state_driven_drift_diffusion_function(
             next_state.state[countdown_zero] = new_states
 
             # Sample new following targets
-            next_state.following_idx[countdown_zero] = rng.integers(
-                0, n_baboons, size=n_updates,
-            )
+            idx_updates = np.flatnonzero(countdown_zero)
+            for i, idx in enumerate(idx_updates):
+                if new_states[i] == State.following.value:
+                    distances = np.linalg.norm(
+                        current_positions - current_positions[idx], axis=1,
+                    )
+                    # Only choose target baboons that are not too close
+                    possible_targets = np.flatnonzero(
+                        distances > min_follow_distance,
+                    )
+                    if possible_targets.size > 0:
+                        next_state.following_idx[idx] = rng.choice(
+                            possible_targets,
+                        )
+                    else:  # If no valid targets, assign random walk state
+                        next_state.state[idx] = State.random_walk.value
+                        next_state.following_idx[idx] = 0
+                else:
+                    next_state.following_idx[idx] = 0
 
             # Sample new countdowns
             countdowns = np.empty(n_updates, dtype=int)
             for i, state_value in enumerate(new_states):
                 state_enum = State(state_value)
-                mean = (
-                    countdown_poisson_mean
-                    if state_countdown_means is None
-                    else state_countdown_means.get(state_enum, countdown_poisson_mean)
-                )
+                mean = state_countdown_means[state_enum]
                 countdowns[i] = 1 + rng.poisson(mean)
             next_state.state_countdown[countdown_zero] = countdowns
 
@@ -155,7 +171,7 @@ def state_driven_drift_diffusion_function(
                 random_angles = rng.uniform(
                     0, 2 * np.pi, size=idx_random_walk.shape[0],
                 )
-                random_step_lengths = step_length + rng.normal(
+                random_step_lengths = random_walk_step_length + rng.normal(
                     0, following_step_size_std, size=idx_random_walk.shape[0],
                 )
                 random_drifts = np.column_stack(
@@ -189,15 +205,16 @@ def state_driven_drift_diffusion_function(
                         0, following_step_size_std, size=distances.shape[0],
                     )
                 ),
-                0.0,
+                min_follow_step,
                 max_follow_step,
             )
             drift_vectors[idx_following] = (
                 directions * step_sizes[:, np.newaxis]
             )
 
-            diffusion_matrices[is_following, 0, 0] = sigma_following
-            diffusion_matrices[is_following, 1, 1] = sigma_following
+            diffusion_matrices[is_following, :, :] = (
+                np.eye(2) * state_diffusion_constants[State.following]
+            )
 
         # ========== GROUP INFLUENCE ==========
         is_group_influence = next_state.state == State.group_influence.value
@@ -214,19 +231,22 @@ def state_driven_drift_diffusion_function(
             perturbed_angles = chosen_angles + rng.normal(
                 0, angle_std, size=idx_self.shape[0],
             )
-            drift_vectors[idx_self] = step_length * np.column_stack(
-                (np.cos(perturbed_angles), np.sin(perturbed_angles))
+            drift_vectors[idx_self] = group_influence_step_length * (
+                np.column_stack(
+                    (np.cos(perturbed_angles), np.sin(perturbed_angles))
+                )
             )
 
-            diffusion_matrices[is_group_influence, 0, 0] = \
-                diffusion_matrices[is_group_influence, 1, 1] = \
-                sigma_group_influence
+            diffusion_matrices[is_group_influence, :, :] = (
+                np.eye(2) * state_diffusion_constants[State.group_influence]
+            )
 
         # ========== STILL ==========
         is_still = next_state.state == State.still.value
         if np.any(is_still):
-            diffusion_matrices[is_still, 0, 0] = sigma_still
-            diffusion_matrices[is_still, 1, 1] = sigma_still
+            diffusion_matrices[is_still, :, :] = (
+                np.eye(2) * state_diffusion_constants[State.still]
+            )
 
         # ========== RANDOM WALK ==========
         is_random_walk = next_state.state == State.random_walk.value
@@ -234,8 +254,9 @@ def state_driven_drift_diffusion_function(
             drift_vectors[is_random_walk] = (
                 next_state.random_walk_drift[is_random_walk]
             )
-            diffusion_matrices[is_random_walk, 0, 0] = sigma_random_walk
-            diffusion_matrices[is_random_walk, 1, 1] = sigma_random_walk
+            diffusion_matrices[is_random_walk, :, :] = (
+                np.eye(2) * state_diffusion_constants[State.random_walk]
+            )
 
         return drift_vectors, diffusion_matrices, next_state
 

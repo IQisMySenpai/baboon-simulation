@@ -34,7 +34,7 @@ class PointVisualizer(SimOutput):
         self,
         baboons_trajectory: npt.NDArray[float],
         colors: Optional[Sequence[str]],
-        interval: int = 200,
+        interval: int = 1000,
     ):
         """
         Set up the animation for the scatter plot using the stored positions
