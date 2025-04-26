@@ -26,8 +26,10 @@ class Simulator:
         initial_baboons: Initial positions of baboons. Shape: (n_baboons, 2).
         dt: Time step size. Default is 1.
         seed: Random seed for reproducibility. Default is 0.
-        drift: Drift function for the SDE. Default is None.
-        diffusion: Diffusion function for the SDE. Default is None.
+        drift_diffusion_with_state: Callable function that takes the
+            baboons_trajectory, random generator, and state as input
+            and returns the drift, diffusion, and next state.
+            Use this instead of drift and diffusion parameters.
     Parameters set after "run" method is called:
         baboons_trajectory_ (np.ndarray): Full trajectory of baboons.
             Shape: (total_steps + 1, n_baboons, 2).
@@ -137,6 +139,8 @@ class Simulator:
         """
         # Use random generator for reproducibility
         # recommended for numpy rather thatn using random.seed
+        if seed is None:
+            seed = self.seed
         rng = np.random.default_rng(seed)  # Create a random generator
 
         baboons_trajectory = np.zeros(

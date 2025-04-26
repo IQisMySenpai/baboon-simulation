@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.markers import MarkerStyle
 from typing import Optional, Sequence
 import numpy as np
 from matplotlib.animation import FuncAnimation
@@ -9,8 +10,8 @@ import numpy.typing as npt
 class PointVisualizer(SimOutput):
     def __init__(
         self,
-        xlim=(-250, 250),
-        ylim=(-250, 250),
+        xlim=(-400, 400),
+        ylim=(-400, 400),
         figsize=(8, 8),
     ):
         """
@@ -28,7 +29,13 @@ class PointVisualizer(SimOutput):
         self.ax.set_ylim(*ylim)
 
         # Initialize scatter plot
-        self.scat = self.ax.scatter([], [], c=[], s=30)
+        self.scat = self.ax.scatter(
+            [],
+            [],
+            c=[],
+            s=30,
+            marker="o",
+        )
 
     def animate(
         self,

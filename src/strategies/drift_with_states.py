@@ -16,7 +16,8 @@ class State(Enum):
         - still: The baboon is not moving (maybe only moving with a small
             perturbation).
         - random_walk: The baboon is doing a random walk (i.e. exploring on its
-            own).
+            own) with drift. The drift is randomly assigned at the beginning of
+            the random walk and is kept until the baboon changes state.
     """
     following = 1
     group_influence = 2
@@ -28,15 +29,18 @@ def state_driven_drift_diffusion_function(
     angle_std: float,
     group_influence_step_length: float,
     random_walk_step_length: float,
+    random_walk_step_length_std: float,
     min_follow_distance: float,
-    min_follow_step: float,
     max_follow_step: float,
     state_diffusion_constants: dict[State, float],
-    following_step_size_std: float = 0.2,
-    following_step_size_proportion: float = 0.1,
+    following_step_length_std: float = 0.2,
+    following_step_length_proportion: float = 0.1,
+    following_radius: float = 1.0,
     state_probabilities: Optional[dict[State, float]] = None,
     state_countdown_means: Optional[dict[State, float]] = None,
     probability_repeat_random_walk: float = 0.0,
+    choose_drift_from_other_random_walkers: bool = True,
+    new_random_walk_drift_angle_std: float = 10 * np.pi / 180,
 ) -> DriftDiffusionWithStateType:
     """
     Creates a drift + diffusion function where each baboon acts according to
@@ -53,17 +57,20 @@ def state_driven_drift_diffusion_function(
             group_influence.
         random_walk_step_length (float): base step length for random walk
             drift.
+        random_walk_step_length_std (float): Standard deviation of noise added
+            to random walk step size.
         min_follow_distance (float): Minimum distance between two baboons for
             one to follow the other.
-        min_follow_step (float): Minimum step size a baboon can take while
-            following another baboon.
         max_follow_step (float): Maximum step size a baboon can take while
             following another baboon.
+        following_radius (float): Radius up to which a baboon is satisfied with
+            its following target. If the distance to the target is smaller than
+            this radius, the baboon will move in the opposite direction.
         state_diffusion_constants (dict[State, float]): Diffusion coefficient
             for each state.
-        following_step_size_std (float): Standard deviation of noise added to
+        following_step_length_std (float): Standard deviation of noise added to
             following step size.
-        following_step_size_proportion (float): Proportion of the distance to
+        following_step_length_proportion (float): Proportion of the distance to
             the target used as a base for following step size.
         state_probabilities (Optional[dict[State, float]]):
             A dictionary mapping each State to its probability when sampling
@@ -74,6 +81,16 @@ def state_driven_drift_diffusion_function(
         probability_repeat_random_walk (float): Probability of repeating the
             random walk state when transitioning from random_walk to another
             state.
+        choose_drift_from_other_random_walkers (bool): If True, when a baboon
+            transitions to the random_walk state, it will choose a drift from
+            another baboon that is already in random_walk state plus some angle
+            perturbation. If False, the baboon will choose a random drift
+            direction.
+        new_random_walk_drift_angle_std (float): Standard deviation of the
+            angle perturbation for the new random walk drift. This is used when
+            a baboon transitions to the random_walk state and is assigned a
+            drift based on an existing random walker. The angle is perturbed
+            by a normal distribution with this standard deviation.
 
     Returns:
         DriftDiffusionWithStateType: A callable that computes the drift vector,
@@ -116,7 +133,7 @@ def state_driven_drift_diffusion_function(
 
         if state_bunch is None:
             state_bunch = Bunch(
-                state=np.full(n_baboons, State.random_walk.value),
+                state=np.full(n_baboons, State.still.value),
                 following_idx=np.arange(n_baboons),
                 state_countdown=np.zeros(n_baboons, dtype=int),
                 random_walk_drift=np.zeros((n_baboons, 2)),
@@ -170,9 +187,9 @@ def state_driven_drift_diffusion_function(
                         next_state.following_idx[idx] = rng.choice(
                             possible_targets,
                         )
-                    else:  # If no valid targets, assign random walk state
-                        next_state.state[idx] = State.random_walk.value
-                        new_states[i] = State.random_walk.value
+                    else:  # If no valid targets, assign still state
+                        next_state.state[idx] = State.still.value
+                        new_states[i] = State.still.value
                         next_state.following_idx[idx] = 0
                 else:
                     next_state.following_idx[idx] = 0
@@ -185,22 +202,57 @@ def state_driven_drift_diffusion_function(
                 countdowns[i] = 1 + rng.poisson(mean)
             next_state.state_countdown[countdown_zero] = countdowns
 
-            # For new random_walk baboons, assign a random drift
+            # For new random_walk baboons, assign drift based on existing
+            # random_walk baboons
             is_new_random_walk = (new_states == State.random_walk.value)
             if np.any(is_new_random_walk):
                 idx_random_walk = (
                     np.flatnonzero(countdown_zero)[is_new_random_walk]
                 )
-                random_angles = rng.uniform(
-                    0, 2 * np.pi, size=idx_random_walk.shape[0],
+
+                # Find currently active random_walk baboons
+                existing_random_walkers = np.flatnonzero(
+                    next_state.state == State.random_walk.value
                 )
-                random_step_lengths = random_walk_step_length + rng.normal(
-                    0, following_step_size_std, size=idx_random_walk.shape[0],
-                )
-                random_drifts = np.column_stack(
-                    (np.cos(random_angles), np.sin(random_angles))
-                ) * random_step_lengths[:, np.newaxis]
-                next_state.random_walk_drift[idx_random_walk] = random_drifts
+
+                for idx in idx_random_walk:
+                    if (
+                        choose_drift_from_other_random_walkers
+                        and existing_random_walkers.size > 0
+                    ):
+                        # Pick a random existing random walker
+                        chosen_idx = rng.choice(existing_random_walkers)
+                        base_drift = next_state.random_walk_drift[chosen_idx]
+
+                        # Perturb angle
+                        base_angle = np.arctan2(base_drift[1], base_drift[0])
+                        perturbed_angle = (
+                            base_angle
+                            + rng.normal(0, new_random_walk_drift_angle_std)
+                        )
+                        # Keep the same magnitude (step size with slight noise)
+                        step_length = (
+                            np.linalg.norm(base_drift)
+                            + rng.normal(0, following_step_length_std)
+                        )
+
+                        drift = np.array([
+                            np.cos(perturbed_angle),
+                            np.sin(perturbed_angle),
+                        ]) * step_length
+                    else:
+                        # If no existing random_walk baboons, random drift
+                        random_angle = rng.uniform(0, 2 * np.pi)
+                        step_length = (
+                            random_walk_step_length
+                            + rng.normal(0, random_walk_step_length_std)
+                        )
+                        drift = np.array([
+                            np.cos(random_angle),
+                            np.sin(random_angle),
+                        ]) * step_length
+
+                    next_state.random_walk_drift[idx] = drift
 
         # Decrement countdowns
         next_state.state_countdown -= 1
@@ -235,19 +287,21 @@ def state_driven_drift_diffusion_function(
             ))
 
             # Step size depends on distance + noise, and is clipped
-            step_sizes = np.clip(
+            step_lengths = np.clip(
                 (
-                    following_step_size_proportion * distances
-                    + rng.normal(
-                        0, following_step_size_std, size=distances.shape[0],
+                    (
+                        following_step_length_proportion
+                        * (distances - following_radius)
+                    ) + rng.normal(
+                        0, following_step_length_std, size=distances.shape[0],
                     )
                 ),
-                min_follow_step,
+                -max_follow_step,
                 max_follow_step,
             )
 
             drift_vectors[idx_following] = (
-                directions * step_sizes[:, np.newaxis]
+                directions * step_lengths[:, np.newaxis]
             )
 
             diffusion_matrices[is_following, :, :] = (
