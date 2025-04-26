@@ -70,6 +70,26 @@ import numpy as np
 import numpy.typing as npt
 from sklearn.utils import Bunch
 
+# The new way to use drift and diffusion: with a state.
+# See implementation in strategies/drift_with_state.py
+DriftDiffusionWithStateType = Callable[
+    [
+        # baboons_trajectory[:t], shape (t, n_baboons, 2)
+        npt.NDArray[np.float64],
+        # random generator (this is the omega)
+        np.random.Generator,
+        # state
+        Optional[Bunch],
+    ],
+    # (output of drift, output of diffusion, next_state)
+    tuple[
+        npt.NDArray[np.float64],  # (n_baboons, 2)
+        npt.NDArray[np.float64],  # (n_baboons, 2, J)
+        Bunch,
+    ],
+]
+
+
 # Signature for the drift and diffusion functions
 DriftType = Callable[
     [
@@ -98,23 +118,4 @@ DiffusionType = Callable[
     ],
     # output of diffusion, shape (n_baboons, J)
     npt.NDArray[np.float64],
-]
-# Jx2 is the dimension of the Wiener process
-
-
-DriftDiffusionWithStateType = Callable[
-    [
-        # baboons_trajectory[:t], shape (t, n_baboons, 2)
-        npt.NDArray[np.float64],
-        # random generator (this is the omega)
-        np.random.Generator,
-        # state
-        Optional[Bunch],
-    ],
-    # (output of drift, output of diffusion, next_state)
-    tuple[
-        npt.NDArray[np.float64],  # (n_baboons, 2)
-        npt.NDArray[np.float64],  # (n_baboons, 2, J)
-        Bunch,
-    ],
 ]

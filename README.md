@@ -2,7 +2,7 @@
 
 This project simulates the movement of baboons using Python. It uses multiple visualization techniques and can be run with a pre-configured environment. Read the [Setup](#setup) section to get started and [Understanding the Simulation architecture](#understanging-the-simulation-architecture) to learn how to create new strategies.
 
-## Understanging the simulation architecture
+## Understanging the simulation architecture UPDATED
 
 First of all, **read `src/simulation_types/documentation.py`**: it contains the explanation of the **objects** in the simulation and the **SDEs** used to simulate the baboon movement. The important part here is the **drift** function, which takes the past trajectories of all baboons and returns the step vector that each baboon is going to take in the next time-step. Read the `src/simulation_types/documentation.py` file to understand the details. The full simulation is explained there and it is not a long explanation.
 
@@ -10,7 +10,10 @@ Therefore, in order to create a new strategy (i.e. rules) for the baboons to fol
 
 1. Modify the "SIMULATION PARAMETERS" in `src/main.py` (e.g. number of baboons, initial position of baboons, total number of timesteps, etc.)
 
-2. Create a drift function in `src/strategies/drift.py` by re-using the existing ones (or not) and adding your own logic. You can use/add any other helper functions in `src/utils/baboons.py` if needed. The idea is that drift functions are configurable with parameters, you can follow the same pattern as I used for `src.strategies.drift.only_angles_drift_function` to achieve this.
+2. Create a drift function in `src/strategies/drift_with_states.py` by adding your own logic to the existing function.
+    - To understand how it works, read the description of the `States` enum.
+    - You can use/add any other helper functions in `src/utils/baboons.py` if needed.
+    - TRICK: give chatGPT the code of `state_driven_drift_diffusion_function` and explain the new modifications you want to do. The code will very likely be reliable (I have been doing this all the time and it works).
 
 3. Then, import your drift function and use it in `src/main.py` to run the simulation with your new strategy. Add any "SIMULATION PARAMETERS" that you need for your own drift function.
 

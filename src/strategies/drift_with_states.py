@@ -4,7 +4,7 @@ from sklearn.utils import Bunch
 import numpy.typing as npt
 from typing import Callable, Optional, Tuple
 from simulation_types.documentation import DriftDiffusionWithStateType
-from utils.baboons import get_angles, get_differences
+from utils.baboons import get_angles, get_differences, get_distances
 
 
 class State(Enum):
@@ -36,6 +36,7 @@ def state_driven_drift_diffusion_function(
     following_step_size_proportion: float = 0.1,
     state_probabilities: Optional[dict[State, float]] = None,
     state_countdown_means: Optional[dict[State, float]] = None,
+    probability_repeat_random_walk: float = 0.0,
 ) -> DriftDiffusionWithStateType:
     """
     Creates a drift + diffusion function where each baboon acts according to
@@ -70,6 +71,9 @@ def state_driven_drift_diffusion_function(
         state_countdown_means (Optional[dict[State, float]]):
             Dictionary specifying Poisson means for each state.
             Defaults to 20 for all states.
+        probability_repeat_random_walk (float): Probability of repeating the
+            random walk state when transitioning from random_walk to another
+            state.
 
     Returns:
         DriftDiffusionWithStateType: A callable that computes the drift vector,
@@ -81,6 +85,8 @@ def state_driven_drift_diffusion_function(
             direction plus diffusion.
         - The internal state includes an additional field `random_walk_drift`
             to store assigned random walk drifts.
+        - In the following state, baboons follow a target baboon which has to
+            be far enough and in random_walk state.
     """
 
     if state_probabilities is None:
@@ -132,24 +138,41 @@ def state_driven_drift_diffusion_function(
                 [s.value for s in state_list], size=n_updates, p=prob_list,
             )
             next_state.state[countdown_zero] = new_states
+            idx_updates = np.flatnonzero(countdown_zero)
+            # Sample whether to repeat random walk
+            repeat_random_walk_flags = (
+                rng.uniform(0, 1, size=n_updates) <
+                probability_repeat_random_walk
+            )
+            currently_random_walk = (
+                state_bunch.state[idx_updates] == State.random_walk.value
+            )
+            force_random_walk = (
+                repeat_random_walk_flags & currently_random_walk
+            )
+            new_states[force_random_walk] = State.random_walk.value
 
             # Sample new following targets
-            idx_updates = np.flatnonzero(countdown_zero)
             for i, idx in enumerate(idx_updates):
                 if new_states[i] == State.following.value:
                     distances = np.linalg.norm(
                         current_positions - current_positions[idx], axis=1,
                     )
-                    # Only choose target baboons that are not too close
+                    # Identify baboons that are both:
+                    # - far enough
+                    # - currently in random_walk state
                     possible_targets = np.flatnonzero(
-                        distances > min_follow_distance,
+                        (distances > min_follow_distance)
+                        & (next_state.state == State.random_walk.value)
                     )
+
                     if possible_targets.size > 0:
                         next_state.following_idx[idx] = rng.choice(
                             possible_targets,
                         )
                     else:  # If no valid targets, assign random walk state
                         next_state.state[idx] = State.random_walk.value
+                        new_states[i] = State.random_walk.value
                         next_state.following_idx[idx] = 0
                 else:
                     next_state.following_idx[idx] = 0
@@ -192,15 +215,29 @@ def state_driven_drift_diffusion_function(
             idx_following = np.flatnonzero(is_following)
             targets = next_state.following_idx[is_following]
 
-            differences = (
-                current_positions[targets] - current_positions[idx_following]
-            )
-            distances = np.linalg.norm(differences, axis=1, keepdims=True)
-            directions = differences / np.maximum(distances, 1e-8)
+            # Get all pairwise angles and distances
+            all_angles = get_angles(current_positions)
+            all_distances = get_distances(current_positions)
 
+            # Extract the angle and distance from follower to its target
+            base_angles = all_angles[idx_following, targets]
+            distances = all_distances[idx_following, targets]
+
+            # Perturb angles
+            perturbed_angles = base_angles + rng.normal(
+                0, angle_std, size=base_angles.shape[0]
+            )
+
+            # Compute directions from perturbed angles
+            directions = np.column_stack((
+                np.cos(perturbed_angles),
+                np.sin(perturbed_angles)
+            ))
+
+            # Step size depends on distance + noise, and is clipped
             step_sizes = np.clip(
                 (
-                    following_step_size_proportion * distances.squeeze()
+                    following_step_size_proportion * distances
                     + rng.normal(
                         0, following_step_size_std, size=distances.shape[0],
                     )
@@ -208,6 +245,7 @@ def state_driven_drift_diffusion_function(
                 min_follow_step,
                 max_follow_step,
             )
+
             drift_vectors[idx_following] = (
                 directions * step_sizes[:, np.newaxis]
             )

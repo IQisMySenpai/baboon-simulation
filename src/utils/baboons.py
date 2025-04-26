@@ -38,3 +38,20 @@ def get_differences(
             baboons_differences[i, j] is the vector from baboon i to baboon j.
     """
     return baboons[np.newaxis, :, :] - baboons[:, np.newaxis, :]
+
+
+def get_distances(
+    baboons: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
+    """
+    Get the distances of each baboon with respect to every other baboon
+    Args:
+        baboons: Baboon positions. Shape (n_baboons, 2)
+    Returns:
+        baboons_distances: Distances of each baboon with respect to every
+            other baboon. Shape (n_baboons, n_baboons).
+            baboons_distances[i, j] is the distance from baboon i to baboon j.
+    """
+    baboon_differences = get_differences(baboons)
+    baboon_distances = np.linalg.norm(baboon_differences, axis=2)
+    return baboon_distances
