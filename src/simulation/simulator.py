@@ -2,7 +2,10 @@ from typing import Optional
 import numpy.typing as npt
 import numpy as np
 from tqdm import tqdm
-from simulation_types.documentation import DriftType, DiffusionType
+from sklearn.utils import Bunch
+from simulation_types.documentation import (
+    DriftType, DriftDiffusionWithStateType, DiffusionType,
+)
 
 
 class Simulator:
@@ -47,6 +50,9 @@ class Simulator:
         drift: Optional[DriftType] = None,
         diffusion: Optional[DiffusionType] = None,
         seed: int = 0,
+        drift_diffusion_with_state: Optional[DriftDiffusionWithStateType] = (
+            None
+        ),
     ):
         """
         Initialize the simulator with a given number of simulation steps.
@@ -61,11 +67,51 @@ class Simulator:
         assert initial_baboons.shape[1] == 2, (
             "Initial baboons must have shape (n_baboons, 2)"
         )
-        assert diffusion is None, (
-            "Diffusion is not implemented yet. Set diffusion=None."
-        )
-        if self.drift is None:
-            self.drift = lambda x, _: np.zeros_like(initial_baboons)
+
+        if drift_diffusion_with_state is not None:
+            assert drift is None, (
+                "drift_diffusion_with_states is not None, "
+                "but drift also provided."
+            )
+            assert diffusion is None, (
+                "drift_diffusion_with_states is not None, "
+                "but diffusion also provided."
+            )
+            drift, diffusion, _ = drift_diffusion_with_state(
+                initial_baboons[np.newaxis, :, :],
+                np.random.default_rng(seed),
+                None,
+            )
+            assert diffusion.shape[0] == initial_baboons.shape[0], (
+                "Diffusion function must return a diffusion term of shape "
+                "(n_baboons, J) where J is the number of Wiener processes."
+            )
+            assert drift.shape[0] == initial_baboons.shape[0], (
+                "Drift function must return a drift term of shape "
+                "(n_baboons, 2)."
+            )
+            self.bm_dim = (diffusion.shape[0], diffusion.shape[2])
+        else:  # I would warn that this is deprecated
+            print(
+                "Warning: using drift and diffusion functions without state "
+                "may cause problems. Use drift_diffusion_with_state instead."
+            )
+            if self.drift is None:
+                self.drift = lambda *_: np.zeros_like(initial_baboons)
+            if self.diffusion is None:
+                self.diffusion = lambda *_: np.zeros((
+                    initial_baboons.shape[0], 1,
+                ))
+                self.bm_dim = 0  # No diffusion term
+            else:
+                diffusion = diffusion(
+                    initial_baboons[np.newaxis, :, :],
+                    np.random.default_rng(seed),
+                    None,
+                )
+                self.bm_dim = (diffusion.shape[0], diffusion.shape[2])
+
+        self.drift_diffusion_with_state = drift_diffusion_with_state
 
     def run(
         self,
@@ -99,14 +145,44 @@ class Simulator:
         )
         baboons_trajectory[0] = self.initial_baboons
 
-        for i in tqdm(range(self.total_steps), desc="Euler iterations"):
-            baboons_trajectory[i + 1] = (
-                baboons_trajectory[i]
-                + self.drift(baboons_trajectory[:i + 1], rng) * self.dt
-                # + (
-                #   diffusion
-                #   * rng.normal(0, np.sqrt(self.dt), size=(self.n_baboons, 2))
-                # )
-            )
+        if self.drift_diffusion_with_state is not None:
+            state = None  # Initialize state to None. It will be updated later.
+            for i in tqdm(range(self.total_steps), desc="Euler iterations"):
+                drift, diffusion, state = self.drift_diffusion_with_state(
+                    baboons_trajectory[:i + 1], rng, state,
+                )
+                bm_increment = rng.normal(
+                    0, np.sqrt(self.dt), size=self.bm_dim,
+                )
+                diffusion_term = np.einsum(
+                    "mij,mj->mi",
+                    diffusion,
+                    bm_increment,
+                )
+                baboons_trajectory[i + 1] = (
+                    baboons_trajectory[i]
+                    + drift * self.dt
+                    + diffusion_term
+                )
+        else:
+            for i in tqdm(range(self.total_steps), desc="Euler iterations"):
+                drift, state = self.drift(baboons_trajectory[:i + 1], rng)
+                if self.bm_dim != 0:
+                    bm_increment = rng.normal(
+                        0, np.sqrt(self.dt), size=self.bm_dim,
+                    )
+                    diffusion_term = np.einsum(
+                        "mij,mj->mi",
+                        self.diffusion(baboons_trajectory[:i + 1], rng),
+                        bm_increment,
+                    )
+                else:
+                    diffusion_term = 0
+                baboons_trajectory[i + 1] = (
+                    baboons_trajectory[i]
+                    + drift * self.dt
+                    + diffusion_term
+                )
+
         self.baboons_trajectory_ = baboons_trajectory
         return baboons_trajectory

@@ -42,14 +42,15 @@ where:
         f outputs an (M, 2)-np.ndarray.
     - g(x[:t], omega) is the DIFFUSION of the SDE.
         It denotes the random change in position of baboon i.
-        g outputs an (M, J)-np.ndarray.
-    - W_t(omega) is a (Jx2-dimensional)-Wiener process (Brownian motion).
+        g outputs an (M, 2, J)-np.ndarray.
+    - W_t(omega) is a (MxJ-dimensional)-Wiener process (Brownian motion).
 
 In practice, this will be implemented with an Euler scheme:
     x[t+1] = x[t] + f(x[:t]) * dt + g(x[:t]) * dW_t,
 where dt is the fixed time step size and dW_t is a normal random variable
 with mean 0 and variance dt. Multiplication "*" here is supposed to be in a
-matrix sense.
+matrix sense:
+    g(x[:t]) * dW_t = np.einsum("mij,mj->mi", g(x[:t]), dW_t).
 
 We will firstly consider cases with g(x[:t]) = 0, i.e. no diffusion.
 If we add the noise term later, we will have to decide what the dimension
@@ -60,10 +61,14 @@ We will use the following notation in the code:
     - g == diffusion
     - x[:t] == baboons_trajectory[:t]
 
+Note: we could be more general, were the output of the diffusion function is
+(M, 2, J, 2) and the BM is (J, 2), and their multiplication is done
+with Einstein summation convention: mijk, jk -> mi.
 """
-from typing import Callable
+from typing import Callable, Optional
 import numpy as np
 import numpy.typing as npt
+from sklearn.utils import Bunch
 
 # Signature for the drift and diffusion functions
 DriftType = Callable[
@@ -72,9 +77,14 @@ DriftType = Callable[
         npt.NDArray[np.float64],
         # random generator (this is the omega)
         np.random.Generator,
+        # state
+        Bunch,
     ],
-    # output of drift, shape (n_baboons, 2)
-    npt.NDArray[np.float64],
+    # (output of drift, next_state)
+    tuple[
+        npt.NDArray[np.float64],  # (n_baboons, 2)
+        Bunch,
+    ],
 ]
 
 DiffusionType = Callable[
@@ -83,8 +93,28 @@ DiffusionType = Callable[
         npt.NDArray[np.float64],
         # random generator (this is the omega)
         np.random.Generator,
+        # state
+        Bunch,
     ],
     # output of diffusion, shape (n_baboons, J)
     npt.NDArray[np.float64],
 ]
 # Jx2 is the dimension of the Wiener process
+
+
+DriftDiffusionWithStateType = Callable[
+    [
+        # baboons_trajectory[:t], shape (t, n_baboons, 2)
+        npt.NDArray[np.float64],
+        # random generator (this is the omega)
+        np.random.Generator,
+        # state
+        Optional[Bunch],
+    ],
+    # (output of drift, output of diffusion, next_state)
+    tuple[
+        npt.NDArray[np.float64],  # (n_baboons, 2)
+        npt.NDArray[np.float64],  # (n_baboons, 2, J)
+        Bunch,
+    ],
+]

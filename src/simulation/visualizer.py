@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from typing import Sequence
+from typing import Optional, Sequence
 import numpy as np
 from matplotlib.animation import FuncAnimation
 from simulation.sim_output import SimOutput
@@ -9,9 +9,9 @@ import numpy.typing as npt
 class PointVisualizer(SimOutput):
     def __init__(
         self,
-        xlim=(0, 100),
-        ylim=(0, 100),
-        figsize=(6, 6),
+        xlim=(-250, 250),
+        ylim=(-250, 250),
+        figsize=(8, 8),
     ):
         """
         Initialize the 2D point visualizer.
@@ -33,11 +33,12 @@ class PointVisualizer(SimOutput):
     def animate(
         self,
         baboons_trajectory: npt.NDArray[float],
-        colors: Sequence[str],
-        interval: int = 100,
+        colors: Optional[Sequence[str]],
+        interval: int = 200,
     ):
         """
-        Set up the animation for the scatter plot using the stored positions and colors.
+        Set up the animation for the scatter plot using the stored positions
+        and colors.
 
         Args:
             baboons_trajectory: Full trajectory of baboons.
@@ -48,7 +49,8 @@ class PointVisualizer(SimOutput):
 
         def update_frame(num):
             self.scat.set_offsets(baboons_trajectory[num, :, :])
-            self.scat.set_color(colors)
+            if colors:
+                self.scat.set_color(colors)
 
         # Set up the animation
         animation = FuncAnimation(
@@ -64,7 +66,7 @@ class PointVisualizer(SimOutput):
     def save(
         self,
         baboons_trajectory: npt.NDArray[np.float64],
-        colors: Sequence[str],
+        colors: Optional[Sequence[str]],
         filename: str,
         fps: int = 30,
         file_format: str = "mp4",
@@ -86,5 +88,3 @@ class PointVisualizer(SimOutput):
             f"{filename}.{file_format}", writer="ffmpeg", fps=fps, dpi=300,
         )
         print(f"Animation saved to {filename}")
-
-
