@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     # ######################## SIMULATION PARAMETERS ##########################
     seed = 93538478
-    total_time_steps = 6000
+    total_time_steps = 2000
     n_baboons = 15  # 33
     scale = 30  # std of the normal distribution to generate initial positions
     np.random.seed(seed)
@@ -54,8 +54,8 @@ if __name__ == "__main__":
             State.still: 0.05,
             State.random_walk: 0.3,
         },
-        probability_repeat_random_walk=0.99,
-        state_countdown_means={  # mean time-steps in each state
+        probability_repeat_random_walk=0.90,
+        state_countdown_means={  # average time-steps in each state
             State.following: 100,
             State.group_influence: 0,
             State.still: 0,
