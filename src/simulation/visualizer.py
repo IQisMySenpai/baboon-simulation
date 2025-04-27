@@ -5,6 +5,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 from simulation.sim_output import SimOutput
 import numpy.typing as npt
+from matplotlib import collections
 
 
 class PointVisualizer(SimOutput):
@@ -100,7 +101,7 @@ class PointVisualizer(SimOutput):
         print(f"Animation saved to {filename}")
 
 
-class LineVisualizer:
+class LineVisualizer (SimOutput):
     def __init__(
         self,
         xlim=(-400, 400),
@@ -199,3 +200,76 @@ class LineVisualizer:
         anim.save(f"{filename}.{file_format}", writer="ffmpeg", fps=fps, dpi=300)
         print(f"Animation saved to {filename}.{file_format}")
 
+
+class TrajectoryVisualizer (SimOutput):
+    def __init__(
+        self,
+        xlim=(-400, 400),
+        ylim=(-400, 400),
+        figsize=(8, 8),
+    ):
+        """
+        Initialize the 2D trajectory visualizer.
+        """
+        self.xlim = xlim
+        self.ylim = ylim
+
+        self.fig, self.ax = plt.subplots(figsize=figsize)
+        self.ax.set_xlim(*xlim)
+        self.ax.set_ylim(*ylim)
+
+    def plot(
+        self,
+        baboons_trajectory: np.ndarray,
+        colors: Optional[Sequence[str]],
+        linewidth: float = 2.0,
+    ):
+        """
+        Plot the full trajectory of each baboon as a line.
+
+        Args:
+            baboons_trajectory: Full trajectory of baboons.
+                Shape (#steps + 1, n_baboons, 2)
+            colors: List of the colors of each baboon. Length n_baboons.
+            linewidth: Width of the lines
+        """
+        n_steps, n_baboons, _ = baboons_trajectory.shape
+
+        segments = []
+        for baboon_idx in range(n_baboons):
+            path = baboons_trajectory[:, baboon_idx, :]
+            segments.append(path)
+
+        line_collection = collections.LineCollection(
+            segments,
+            colors=colors,
+            linewidths=linewidth,
+        )
+        self.ax.add_collection(line_collection)
+        self.ax.autoscale_view()
+
+    def save(
+        self,
+        baboons_trajectory: np.ndarray,
+        colors: Optional[Sequence[str]],
+        filename: str,
+        file_format: str = "png",
+    ):
+        """
+        Save the static trajectory plot as an image.
+
+        Args:
+            baboons_trajectory: Full trajectory of baboons.
+                Shape (#steps + 1, n_baboons, 2)
+            colors: List of the colors of each baboon. Length n_baboons.
+            filename: The name of the output file
+            fps: Not used in static version, kept for compatibility
+            file_format: File format (e.g., 'png', 'jpg', 'svg')
+        """
+        # Plot the trajectory
+        self.plot(baboons_trajectory, colors)
+
+        # Save the figure as an image
+        full_filename = f"{filename}.{file_format}"
+        self.fig.savefig(full_filename, dpi=300, format=file_format)
+        print(f"Image saved to {full_filename}")
