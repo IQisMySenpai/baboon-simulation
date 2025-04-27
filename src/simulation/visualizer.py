@@ -32,9 +32,10 @@ class PointVisualizer(SimOutput):
         self.scat = self.ax.scatter(
             [],
             [],
-            c=[],
             s=30,
-            marker="o",
+            facecolors=[],  # inside color
+            edgecolors=[] ,  # border color
+            marker='.',  # either 'o' or '.', depending what size you want
         )
 
     def animate(
@@ -57,7 +58,8 @@ class PointVisualizer(SimOutput):
         def update_frame(num):
             self.scat.set_offsets(baboons_trajectory[num, :, :])
             if colors:
-                self.scat.set_color(colors)
+                self.scat.set_facecolor(colors)
+                self.scat.set_edgecolor(colors)
 
         # Set up the animation
         animation = FuncAnimation(
