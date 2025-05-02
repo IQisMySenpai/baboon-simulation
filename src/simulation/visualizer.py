@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-from matplotlib.markers import MarkerStyle
 from typing import Optional, Sequence
 import numpy as np
 from matplotlib.animation import FuncAnimation
