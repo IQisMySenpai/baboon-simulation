@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from typing import Sequence
+import numpy.typing as npt
 
 
 class SimOutput(ABC):
@@ -10,7 +10,12 @@ class SimOutput(ABC):
     """
 
     @abstractmethod
-    def save(self, filename: str):
+    def save(
+        self,
+        baboons_trajectory: npt.NDArray[np.float64],
+        filename: str,
+        **kwargs,
+    ):
         """
         Save the current plot to a file.
         """
