@@ -21,8 +21,8 @@ OUT_DIR = os.path.join(THIS_DIR, "../outputs")
 if __name__ == "__main__":
 
     # ######################## SIMULATION PARAMETERS ##########################
-    seed = 93538478
-    total_time_steps = 2000
+    seed = 92765478
+    total_time_steps = 3000
     n_baboons = 15  # 33
     scale = 30  # std of the normal distribution to generate initial positions
     np.random.seed(seed)
@@ -35,13 +35,14 @@ if __name__ == "__main__":
         group_influence_step_length=0.2,
         random_walk_step_length=0.3,
         random_walk_step_length_std=0.2,
-        min_follow_distance=5.0,
+        min_follow_distance=0.0,
+        max_follow_distance=150.0,
         max_follow_step=0.3,
         following_step_length_std=0.2,
         following_step_length_proportion=0.25,
         following_radius=20.0,
         choose_drift_from_other_random_walkers=True,
-        new_random_walk_drift_angle_std=10 * np.pi / 180,
+        new_random_walk_drift_angle_std=30 * np.pi / 180,
         state_diffusion_constants={
             State.still: 0.15,
             State.following: 0.2,
@@ -49,17 +50,17 @@ if __name__ == "__main__":
             State.random_walk: 0.3,
         },
         state_probabilities={  # probability to choose each state
-            State.following: 0.65,
+            State.following: 0.95,
             State.group_influence: 0,
-            State.still: 0.05,
-            State.random_walk: 0.3,
+            State.still: 0,
+            State.random_walk: 0.05,
         },
         probability_repeat_random_walk=0.90,
         state_countdown_means={  # average time-steps in each state
-            State.following: 100,
+            State.following: 80,
             State.group_influence: 0,
             State.still: 0,
-            State.random_walk: 300,
+            State.random_walk: 500,
         },
     )
     # #################### END OF SIMULATION PARAMETERS #######################
@@ -83,7 +84,9 @@ if __name__ == "__main__":
 
     visualizer = PointVisualizer()
     visualizer.save(
-        baboons_trajectory=baboons_trajectory,
+        baboons_trajectory=baboons_trajectory,  # Save every x-th frame
         colors=colors,
         filename=os.path.join(OUT_DIR, "baboons_visualization"),
+        fps=30,
+        dpi=100,
     )
