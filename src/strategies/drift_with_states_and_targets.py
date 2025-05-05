@@ -264,7 +264,11 @@ def state_driven_drift_diffusion_with_targets_function(
                     )
                     # Candidate baboons: either random_walk OR target_state
                     # where target not yet visited
-                    valid_random = next_state.state == State.random_walk.value
+                    valid_non_target = (
+                        next_state.state == State.random_walk.value
+                    ) | (
+                        next_state.state == State.still.value
+                    )
                     valid_target = next_state.state == State.target.value
 
                     # Get which target each baboon in target mode is pursuing
@@ -284,7 +288,7 @@ def state_driven_drift_diffusion_with_targets_function(
                         target_baboons[still_relevant_targets]
                     )
                     possible_targets = np.flatnonzero(
-                        in_range & (valid_random | np.isin(
+                        in_range & (valid_non_target | np.isin(
                             np.arange(n_baboons), valid_target_indices,
                         ))
                     )
@@ -448,7 +452,6 @@ def state_driven_drift_diffusion_with_targets_function(
         # ========== STILL ==========
         is_still = next_state.state == State.still.value
         if np.any(is_still):
-            print(f"# of STILL: {np.sum(is_still)}")
             diffusion_matrices[is_still, :, :] = (
                 np.eye(2) * state_diffusion_constants[State.still]
             )

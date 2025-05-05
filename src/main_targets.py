@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     # ######################## SIMULATION PARAMETERS ##########################
     seed = 924362874
-    total_time_steps = 14000
+    total_time_steps = 16000
     n_baboons = 15  # 33
     scale = 80  # std of the normal distribution to generate initial positions
     np.random.seed(seed)
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # Drift parameters and function
     drift_diffusion_with_state = (
         state_driven_drift_diffusion_with_targets_function(
-            angle_std=30 * np.pi / 180,
+            angle_std=50 * np.pi / 180,
             group_influence_step_length=0.4,
             random_walk_step_length=0.4,
             random_walk_step_length_std=0.2,
@@ -53,7 +53,7 @@ if __name__ == "__main__":
             following_step_length_proportion=0.25,
             following_radius=20.0,
             target_radius=30.0,
-            choose_drift_from_other_random_walkers=True,
+            choose_drift_from_other_random_walkers=False,
             new_random_walk_drift_angle_std=30 * np.pi / 180,
             targets=targets,
             new_target_noise_std=5.0,
@@ -76,7 +76,7 @@ if __name__ == "__main__":
             state_countdown_means={  # average time-steps in each state
                 State.following: 200,
                 State.group_influence: 0,
-                State.still: 0,
+                State.still: 30,
                 State.random_walk: 50,
                 State.target: 200,
             },
