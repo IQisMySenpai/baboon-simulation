@@ -80,6 +80,7 @@ class PointVisualizer(SimOutput):
         filename: str,
         fps: int = 30,
         file_format: str = "mp4",
+        dpi: int = 300,
     ):
         """
         Save the animation to a file (e.g., MP4 or GIF).
@@ -92,10 +93,11 @@ class PointVisualizer(SimOutput):
             fps: Frames per second (default is 30)
             file_format: File format (default is "mp4", other options include
                 "gif", "avi", etc.)
+            dpi: Dots per inch (default is 300)
         """
         animation = self.animate(baboons_trajectory, colors)
         animation.save(
-            f"{filename}.{file_format}", writer="ffmpeg", fps=fps, dpi=300,
+            f"{filename}.{file_format}", writer="ffmpeg", fps=fps, dpi=dpi,
         )
         print(f"Animation saved to {filename}")
 

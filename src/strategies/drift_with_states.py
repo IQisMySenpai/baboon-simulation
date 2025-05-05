@@ -31,6 +31,7 @@ def state_driven_drift_diffusion_function(
     random_walk_step_length: float,
     random_walk_step_length_std: float,
     min_follow_distance: float,
+    max_follow_distance: float,
     max_follow_step: float,
     state_diffusion_constants: dict[State, float],
     following_step_length_std: float = 0.2,
@@ -60,6 +61,8 @@ def state_driven_drift_diffusion_function(
         random_walk_step_length_std (float): Standard deviation of noise added
             to random walk step size.
         min_follow_distance (float): Minimum distance between two baboons for
+            one to follow the other.
+        max_follow_distance (float): Maximum distance between two baboons for
             one to follow the other.
         max_follow_step (float): Maximum step size a baboon can take while
             following another baboon.
@@ -180,16 +183,20 @@ def state_driven_drift_diffusion_function(
                     # - currently in random_walk state
                     possible_targets = np.flatnonzero(
                         (distances > min_follow_distance)
+                        & (distances < max_follow_distance)
                         & (next_state.state == State.random_walk.value)
                     )
 
                     if possible_targets.size > 0:
+                        target_distances = distances[possible_targets]
+                        # Inverse-distance weighting using softmax-like logic
+                        weights = np.exp(-target_distances)
                         next_state.following_idx[idx] = rng.choice(
-                            possible_targets,
+                            possible_targets, p=weights / weights.sum(),
                         )
-                    else:  # If no valid targets, assign still state
-                        next_state.state[idx] = State.still.value
-                        new_states[i] = State.still.value
+                    else:  # If no valid targets, assign group influence state
+                        next_state.state[idx] = State.group_influence.value
+                        new_states[i] = State.group_influence.value
                         next_state.following_idx[idx] = 0
                 else:
                     next_state.following_idx[idx] = 0
