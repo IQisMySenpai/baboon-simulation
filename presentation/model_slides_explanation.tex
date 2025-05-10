@@ -212,6 +212,22 @@
     \end{itemize}
 \end{frame}
 
+\begin{frame}{Future work}
+    \begin{itemize}
+        \pause
+        \item Explore the possibility of training a Neural SDE model with the original GPS data 
+        \begin{figure}
+            \centering
+            \includegraphics[width=0.7\linewidth]{neuralSDEs_diagram.pdf}
+        \end{figure}
+        \pause
+        \item Explore different equation drivers \(Y_t\) alternative to plain Brownian motion to model the movement of (other) animals moving in different mediums (e.g. a fluid, windy conditions, etc.)
+        \[
+            dX_t = f(...) dt + g(...) dY_t
+        \]
+    \end{itemize}
+\end{frame}
+
 \begin{frame}{References}
 
 \nocite{*}
@@ -245,6 +261,7 @@
 
 
 \end{document}
+
 
 
 % WORKFLOW for google slides:
