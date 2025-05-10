@@ -1,0 +1,220 @@
+\documentclass[
+    aspectratio=149,
+    10pt,
+]{beamer}
+\usepackage{graphicx} % Required for inserting images
+
+\usepackage[backend=biber]{biblatex}
+\addbibresource{references.bib}
+\begin{filecontents}{references.bib}
+@article{StrandburgPeshkin2015,
+  title={Shared decision-making drives collective movement in wild baboons},
+  author={Strandburg-Peshkin, Ariana and Farine, Damien R. and Couzin, Iain D. and Crofoot, Margaret C.},
+  journal={Science},
+  volume={348},
+  number={6241},
+  pages={1358--1361},
+  year={2015},
+  publisher={American Association for the Advancement of Science},
+  doi={10.1126/science.aaa5099},
+  url={https://www.science.org/doi/10.1126/science.aaa5099}
+}
+
+@book{oksendal2003stochastic,
+  author = {{\O}ksendal, Bernt},
+  day = 21,
+  edition = {6th},
+  howpublished = {Paperback},
+  isbn = {3540047581},
+  month = jan,
+  publisher = {Springer},
+  timestamp = {2019-08-24T00:34:38.000+0200},
+  title = {{Stochastic Differential Equations: An Introduction with Applications (Universitext)}},
+  year = 2014,
+  url = https://doi.org/10.1007/978-3-642-14394-6,
+}
+
+@misc{chen2019neuralordinarydifferentialequations,
+      title={Neural Ordinary Differential Equations}, 
+      author={Ricky T. Q. Chen and Yulia Rubanova and Jesse Bettencourt and David Duvenaud},
+      year={2019},
+      eprint={1806.07366},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/1806.07366}, 
+}
+
+@misc{kidger2021neuralsdesinfinitedimensionalgans,
+      title={Neural SDEs as Infinite-Dimensional GANs}, 
+      author={Patrick Kidger and James Foster and Xuechen Li and Harald Oberhauser and Terry Lyons},
+      year={2021},
+      eprint={2102.03657},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2102.03657}, 
+}
+\end{filecontents}
+
+\usepackage{amsmath, amssymb, amsthm}
+
+\title{Baboons presentation}
+\author{Pablo Cuesta Sierra}
+\date{May 2025}
+
+% Looks
+\setbeamercolor{frametitle}{fg=black}
+\setbeamertemplate{navigation symbols}{}
+\setbeamersize{text margin left=0.9cm, text margin right=0.9cm}
+
+\usepackage{fontspec}
+\setsansfont{Arial}
+\setmainfont{Arial}
+\usepackage{unicode-math}
+\unimathsetup{math-style=TeX}
+\setmathfont{Latin Modern Math}
+
+
+% Image on left bottom
+\usepackage{tikz}
+\usepackage{graphicx}
+\addtobeamertemplate{footline}{}{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=south west, xshift=0.7cm, yshift=-0.1cm] at (current page.south west) {
+      \includegraphics[height=1cm]{ETH Zurich New}
+    };
+  \end{tikzpicture}
+}
+
+% Frame title
+\setbeamerfont{frametitle}{series=\normalfont}
+\makeatletter
+\setbeamertemplate{frametitle}{%
+  \nointerlineskip%
+  \vskip1.5ex%
+  \makebox[\dimexpr\paperwidth-1.4cm][l]{\hspace*{0cm}\insertframetitle}%
+  \vskip-2ex%
+}
+\makeatother
+
+% Commands
+\newcommand{\independent}{\perp\!\!\!\!\perp}
+
+
+\begin{document}
+
+\begin{frame}
+\frametitle{Stochastic Differential Equations (SDEs): basic idea}
+
+
+% \begin{columns}
+    % \begin{column}{0.5\textwidth}
+       SDEs describe dynamical systems with some source of randomness. \pause
+
+       They generalize ordinary differential equations (ODEs)
+        \[
+           \frac{dX_t}{dt} = f(X_t, t)
+        \]
+        by incorporating a noise term 
+        \[
+           \frac{dX_t}{dt} = \pause f(t, X_t) + \text{``noise}_t\text{''}(\omega).
+        \]
+    % \end{column}
+    % \pause
+    % \begin{column}{0.5\textwidth}
+    \pause
+        In practice,\[
+            dX_t = f(t, X_t)\, dt + dW_t,
+        \]
+        where \(
+            W_t
+        \) is a Brownian motion.
+%     \end{column}
+% \end{columns}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{SDEs and simulation}
+
+\textbf{General Form:} 
+\[
+    X_0 = x \in \mathbb{R}^N
+\]
+\[
+    \underbrace{dX_t}_{N\times 1} = \underbrace{f(t, X_t)}_{N\times 1}\, dt + \underbrace{g(t, X_t)}_{N\times B}\, \underbrace{dW_t}_{B\times 1},
+\]
+\begin{itemize}
+    \item \( f(X_t, t) \) is the \textbf{drift coefficient}.
+    \item \( g(X_t, t) \) is the \textbf{diffusion coefficient}.
+\end{itemize}
+\pause
+
+\textbf{Key Features:}
+\begin{itemize}
+    \item Models systems with inherent uncertainty (e.g., financial markets, image generation, time series prediction, animal or particle movement).
+    \pause
+    \item Numerous methods for numerical solutions: e.g., Euler-Maruyama method:\[
+        \hat X_{t+\Delta t} = \pause \hat X_t + \pause f(t, \hat X_t)\Delta t  \pause + g(t, \hat X_t)\underbrace{\Delta W_t}_{\sim \mathcal N(0, t)}
+    \]
+\end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Modeling Baboon Movement with SDEs}
+    
+        
+    \(B\): number of baboons, \(x = x^{1:B} = (x^1, \dots, x^B)\): paths of the baboons,
+    \begin{align*}
+        x^i:[0, T] &\to \mathbb R^2\\
+        t&\mapsto x^i_t.
+    \end{align*} \pause
+    % \(x^i_t\) is the position of \(i\)-th baboon at time \(t\).
+    \(    x^i    \) follows the SDE
+    
+    \begin{equation}
+        dx^i_t = f^i(t, x_{0:t}, \omega) dt + \alt<3->{\sigma}{g^i(t, x_{0:t}, \omega)} dW^i_t(\omega).
+    \end{equation}
+    \pause
+    In practice:
+    \begin{verbatim}
+        x[t+1] = x[t] + drift(x[:t]) * dt
+                      +    sigma     * normal_sample(0,dt)
+    \end{verbatim}
+    \pause
+    \begin{center} 
+        \emph{The baboon strategy is fully defined by} {\texttt{drift}}.
+    \end{center}
+\end{frame}
+\begin{frame}[fragile]{Modeling Baboon Movement with SDEs: advantages}
+    \begin{itemize}
+        \item Generalizes usual approaches: \(x_{t+1} = x_t + \text{step}\) (we don't lose generality)
+        \pause
+        \item Simple code \pause (we only care about defining \texttt{drift} properly).
+        \pause 
+        \item We can reuse well-understood numerical methods to obtain simulations.
+        \pause 
+        \item We can \emph{learn} the drift coefficients from data: Neural (O/C/S)DEs \cite{chen2019neuralordinarydifferentialequations, kidger2021neuralsdesinfinitedimensionalgans}
+        \pause
+        \begin{figure}
+            \centering
+            \includegraphics[width=0.8\linewidth]{neuralSDEs_diagram.pdf}
+        \end{figure}
+        \pause
+        \item We could model other environments if we modify our equation driver:
+        \[
+            dX_t = f(X_t) dt + g(X_t) \underbrace{d(\mu(t) t + W_t)}_{\text{Brownian motion with drift}}
+        \]
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{References}
+
+\nocite{*}
+\printbibliography
+    
+\end{frame}
+
+
+
+\end{document}
