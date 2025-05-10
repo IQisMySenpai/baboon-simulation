@@ -5,7 +5,7 @@ from matplotlib.animation import FuncAnimation
 from simulation.sim_output import SimOutput
 import numpy.typing as npt
 from matplotlib import collections
-
+from scipy.ndimage import gaussian_filter
 
 class PointVisualizer(SimOutput):
     def __init__(
@@ -21,29 +21,52 @@ class PointVisualizer(SimOutput):
             xlim: x-axis limits
             ylim: y-axis limits
             figsize: Figure size
+            background_image: 2D numpy array (grayscale) to display as background
         """
         self.xlim = xlim
         self.ylim = ylim
+        # Load image (automatically normalizes pixel values to [0, 1])
+        image = plt.imread("/Users/jannick/Desktop/asdagd.png")
+
+        # If the image is RGB (3D array), convert to grayscale by averaging channels
+        if image.ndim == 3 and image.shape[2] == 3:
+            grayscale_image = np.mean(image, axis=2)
+        else:
+            grayscale_image = image  # Already grayscale
+
+        self.background_image = gaussian_filter(grayscale_image, sigma=2)
 
         self.fig, self.ax = plt.subplots(figsize=figsize)
         self.ax.set_xlim(*xlim)
         self.ax.set_ylim(*ylim)
+
+        # Add background image if provided
+        if self.background_image is not None:
+            self.ax.imshow(
+                self.background_image,
+                cmap="gray",
+                extent=(xlim[0], xlim[1], ylim[0], ylim[1]),
+                origin="lower",  # adjust if needed
+                zorder=0,
+                alpha=0.6,       # Optional: make semi-transparent
+            )
 
         # Initialize scatter plot
         self.scat = self.ax.scatter(
             [],
             [],
             s=30,
-            facecolors=[],  # inside color
-            edgecolors=[] ,  # border color
-            marker='.',  # either 'o' or '.', depending what size you want
+            facecolors=[],
+            edgecolors=[],
+            marker='.',
+            zorder=1,
         )
 
     def animate(
-        self,
-        baboons_trajectory: npt.NDArray[float],
-        colors: Optional[Sequence[str]],
-        interval: int = 1000,
+            self,
+            baboons_trajectory: npt.NDArray[float],
+            colors: Optional[Sequence[str]],
+            interval: int = 1000,
     ):
         """
         Set up the animation for the scatter plot using the stored positions
@@ -74,13 +97,13 @@ class PointVisualizer(SimOutput):
         return animation
 
     def save(
-        self,
-        baboons_trajectory: npt.NDArray[np.float64],
-        colors: Optional[Sequence[str]],
-        filename: str,
-        fps: int = 30,
-        file_format: str = "mp4",
-        dpi: int = 300,
+            self,
+            baboons_trajectory: npt.NDArray[np.float64],
+            colors: Optional[Sequence[str]],
+            filename: str,
+            fps: int = 30,
+            file_format: str = "mp4",
+            dpi: int = 300,
     ):
         """
         Save the animation to a file (e.g., MP4 or GIF).

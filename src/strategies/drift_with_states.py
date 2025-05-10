@@ -5,7 +5,9 @@ import numpy.typing as npt
 from typing import Callable, Optional, Tuple
 from simulation_types.documentation import DriftDiffusionWithStateType
 from utils.baboons import get_angles, get_differences, get_distances
-
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.ndimage import gaussian_filter
 
 class State(Enum):
     """State of the baboon.
@@ -24,6 +26,13 @@ class State(Enum):
     still = 3
     random_walk = 4
 
+def convert_to_image_coords(pos, image_shape, sim_bounds):
+    x, y = pos
+    min_x, max_x, min_y, max_y = sim_bounds
+    h, w = image_shape
+    col = int((x - min_x) / (max_x - min_x) * w)
+    row = int((y - min_y) / (max_y - min_y) * h)
+    return np.clip(row, 0, h - 1), np.clip(col, 0, w - 1)
 
 def state_driven_drift_diffusion_function(
     angle_std: float,
@@ -126,6 +135,20 @@ def state_driven_drift_diffusion_function(
     state_list = list(state_probabilities.keys())
     prob_list = list(state_probabilities.values())
 
+    # Load image (automatically normalizes pixel values to [0, 1])
+    image = plt.imread("/Users/jannick/Desktop/asdagd.png")
+
+    # If the image is RGB (3D array), convert to grayscale by averaging channels
+    if image.ndim == 3 and image.shape[2] == 3:  # RGB image
+        grayscale_image = np.mean(image, axis=2)
+    elif image.ndim == 3 and image.shape[2] == 4:  # RGBA image
+        grayscale_image = np.mean(image[:, :, :3], axis=2)  # Use RGB channels for grayscale
+    else:
+        grayscale_image = image  # Already grayscale
+
+    smoothed = gaussian_filter(grayscale_image, sigma=2)
+    grad_y, grad_x = np.gradient(smoothed)
+
     def drift_diffusion(
         baboons_trajectory: npt.NDArray[np.float64],
         rng: np.random.Generator,
@@ -133,6 +156,14 @@ def state_driven_drift_diffusion_function(
     ) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], Bunch]:
         n_baboons = baboons_trajectory.shape[1]
         current_positions = baboons_trajectory[-1, :, :]  # (n_baboons, 2)
+
+        rowcol_coords = np.array([
+            convert_to_image_coords(pos, grayscale_image.shape, (-400, 400, -400, 400)) for pos in current_positions
+        ])
+        rows, cols = rowcol_coords[:, 0], rowcol_coords[:, 1]
+        sampled_grad_x = grad_x[rows, cols]
+        sampled_grad_y = grad_y[rows, cols]
+        gradient_bias = np.column_stack((sampled_grad_x, sampled_grad_y))
 
         if state_bunch is None:
             state_bunch = Bunch(
@@ -350,9 +381,12 @@ def state_driven_drift_diffusion_function(
         # ========== RANDOM WALK ==========
         is_random_walk = next_state.state == State.random_walk.value
         if np.any(is_random_walk):
-            drift_vectors[is_random_walk] = (
-                next_state.random_walk_drift[is_random_walk]
+            light_bias_strength = 0.3  # adjust this factor to tune influence
+            biased_drift = (
+                    next_state.random_walk_drift[is_random_walk]
+                    + light_bias_strength * gradient_bias[is_random_walk]
             )
+            drift_vectors[is_random_walk] = biased_drift
             diffusion_matrices[is_random_walk, :, :] = (
                 np.eye(2) * state_diffusion_constants[State.random_walk]
             )
