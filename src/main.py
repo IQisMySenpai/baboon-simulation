@@ -29,6 +29,18 @@ if __name__ == "__main__":
     initial_baboons = np.random.normal(0, scale, (n_baboons, 2))
     diffusion_constant = 4
 
+    def bm_drift_function(t):
+        """
+        2-dim drift for the Brownian motion that drives the baboon equation.
+        """
+        drift_direction = np.array([
+            np.cos(t / 300),
+            np.sin(t / 300),
+        ])
+        drift_strength = 10 * np.sin(t / 20)
+        return drift_direction * drift_strength
+
+    bm_drift_function = None
     # Drift parameters and function
     drift_diffusion_with_state = state_driven_drift_diffusion_function(
         angle_std=30 * np.pi / 180,
@@ -44,10 +56,10 @@ if __name__ == "__main__":
         choose_drift_from_other_random_walkers=True,
         new_random_walk_drift_angle_std=30 * np.pi / 180,
         state_diffusion_constants={
-            State.still: 0.15,
-            State.following: 0.2,
-            State.group_influence: 0.2,
-            State.random_walk: 0.3,
+            State.still: 0.15 * 0.5,
+            State.following: 0.2 * 0.5,
+            State.group_influence: 0.2 * 0.5,
+            State.random_walk: 0.3 * 0.5,
         },
         state_probabilities={  # probability to choose each state
             State.following: 0.95,
@@ -79,14 +91,19 @@ if __name__ == "__main__":
         diffusion=None,
         seed=seed,
         drift_diffusion_with_state=drift_diffusion_with_state,
+        bm_drift_function=bm_drift_function,
     )
     baboons_trajectory = simulator.run()
 
-    visualizer = PointVisualizer()
+    visualizer = PointVisualizer(
+        xlim=(-200, 200),
+        ylim=(-200, 200),
+    )
     visualizer.save(
-        baboons_trajectory=baboons_trajectory,  # Save every x-th frame
+        baboons_trajectory=baboons_trajectory[500:2000:2],  # Save every x-th frame
         colors=colors,
         filename=os.path.join(OUT_DIR, "baboons_visualization"),
-        fps=30,
+        fps=15,
+        file_format="gif",
         dpi=100,
     )

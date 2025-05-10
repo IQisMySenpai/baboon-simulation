@@ -1,5 +1,5 @@
 \documentclass[
-    aspectratio=149,
+    aspectratio=169,
     10pt,
 ]{beamer}
 \usepackage{graphicx} % Required for inserting images
@@ -136,6 +136,8 @@
 \begin{frame}
 \frametitle{SDEs and simulation}
 
+\vspace{0.7cm}
+
 \textbf{General Form:} 
 \[
     X_0 = x \in \mathbb{R}^N
@@ -148,7 +150,7 @@
     \item \( g(X_t, t) \) is the \textbf{diffusion coefficient}.
 \end{itemize}
 \pause
-
+\bigskip
 \textbf{Key Features:}
 \begin{itemize}
     \item Models systems with inherent uncertainty (e.g., financial markets, image generation, time series prediction, animal or particle movement).
@@ -178,12 +180,13 @@
     \pause
     In practice:
     \begin{verbatim}
-        x[t+1] = x[t] + drift(x[:t]) * dt
-                      +    sigma     * normal_sample(0,dt)
+    x[t+1]  =  x[t]   +   drift(x[:t]) * dt   +   sigma * normal_sample(0,dt)
     \end{verbatim}
     \pause
+    \vspace{0.2cm}
     \begin{center} 
-        \emph{The baboon strategy is fully defined by} {\texttt{drift}}.
+        \large
+        \emph{The baboon strategy is fully defined by} {\texttt{drift()}}
     \end{center}
 \end{frame}
 \begin{frame}[fragile]{Modeling Baboon Movement with SDEs: advantages}
@@ -198,12 +201,13 @@
         \pause
         \begin{figure}
             \centering
-            \includegraphics[width=0.8\linewidth]{neuralSDEs_diagram.pdf}
+            \includegraphics[width=0.7\linewidth]{neuralSDEs_diagram.pdf}
         \end{figure}
         \pause
         \item We could model other environments if we modify our equation driver:
         \[
-            dX_t = f(X_t) dt + g(X_t) \underbrace{d(\mu(t) t + W_t)}_{\text{Brownian motion with drift}}
+            dX_t = f(...) \cdot dt + g(...) \cdot 
+            \alt<8->{\underbrace{d\left(\ \mu(t)\, t + W_t\ \right)}_{\makebox[0pt]{\footnotesize\text{driven by Brownian motion with drift}}}}{\underbrace{dW_t}_{\makebox[0pt]{\footnotesize\text{driven by Brownian motion}}}}
         \]
     \end{itemize}
 \end{frame}
@@ -215,6 +219,35 @@
     
 \end{frame}
 
+% Frames just for pictures
+\setbeamertemplate{footline}{}
+
+\begin{frame}
+\Huge
+\[  
+    dX_t = f(...) dt + g(...) dW_t
+\]
+    
+\end{frame}
+\begin{frame}
+\LARGE
+\[  
+    dX_t = f(...) dt + g(...) d\left(
+        \underbrace{5\sin(t)\begin{bmatrix}
+            \sin(t / K) \\
+            \cos(t / K)
+        \end{bmatrix}}_{\mu(t)} t + W_t
+    \right)
+\]
+    
+\end{frame}
+
 
 
 \end{document}
+
+
+% WORKFLOW for google slides:
+% 1. Compile this 
+% 2. Convert to PNG higest resolution possible in https://www.ilovepdf.com/pdf_to_jpg
+% 3. Upload to google slides :/

@@ -2,6 +2,7 @@ from typing import Optional
 import numpy.typing as npt
 import numpy as np
 from tqdm import tqdm
+from typing import Callable
 from sklearn.utils import Bunch
 from simulation_types.documentation import (
     DriftType, DriftDiffusionWithStateType, DiffusionType,
@@ -30,6 +31,11 @@ class Simulator:
             baboons_trajectory, random generator, and state as input
             and returns the drift, diffusion, and next state.
             Use this instead of drift and diffusion parameters.
+        bm_drift_function(t): drift of the Brownian motion that drives the SDE.
+            Has to output a vector of the same dimension as
+            the Brownian motion.
+            If None, the drift is set to zero.
+
     Parameters set after "run" method is called:
         baboons_trajectory_ (np.ndarray): Full trajectory of baboons.
             Shape: (total_steps + 1, n_baboons, 2).
@@ -55,6 +61,7 @@ class Simulator:
         drift_diffusion_with_state: Optional[DriftDiffusionWithStateType] = (
             None
         ),
+        bm_drift_function: Optional[Callable] = None,
     ):
         """
         Initialize the simulator with a given number of simulation steps.
@@ -113,6 +120,11 @@ class Simulator:
                 )
                 self.bm_dim = (diffusion.shape[0], diffusion.shape[2])
 
+        if bm_drift_function is None:
+            self.bm_drift_function = lambda t: np.zeros(self.bm_dim)
+        else:
+            self.bm_drift_function = bm_drift_function
+
         self.drift_diffusion_with_state = drift_diffusion_with_state
 
     def run(
@@ -155,13 +167,17 @@ class Simulator:
                 drift, diffusion, state = self.drift_diffusion_with_state(
                     baboons_trajectory[:i + 1], rng, state,
                 )
+                bm_drift = self.bm_drift_function(i * self.dt)
                 bm_increment = rng.normal(
                     0, np.sqrt(self.dt), size=self.bm_dim,
                 )
                 diffusion_term = np.einsum(
                     "mij,mj->mi",
                     diffusion,
-                    bm_increment,
+                    (
+                        bm_drift * self.dt
+                        + bm_increment
+                    ),
                 )
                 baboons_trajectory[i + 1] = (
                     baboons_trajectory[i]
