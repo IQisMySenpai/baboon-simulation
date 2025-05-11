@@ -1,0 +1,180 @@
+\documentclass[
+    article,
+    oneside,
+]{memoir}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% ===== References =====
+
+\usepackage[backend=biber]{biblatex}
+\addbibresource{references.bib}
+\begin{filecontents}{references.bib}
+@article{StrandburgPeshkin2015,
+  title={Shared decision-making drives collective movement in wild baboons},
+  author={Strandburg-Peshkin, Ariana and Farine, Damien R. and Couzin, Iain D. and Crofoot, Margaret C.},
+  journal={Science},
+  volume={348},
+  number={6241},
+  pages={1358--1361},
+  year={2015},
+  publisher={American Association for the Advancement of Science},
+  doi={10.1126/science.aaa5099},
+  url={https://www.science.org/doi/10.1126/science.aaa5099}
+}
+
+@misc{github:baboon-simulation,
+  author = {Carpio Chicote, Álvaro and Cuesta Sierra, Pablo and Romero de Frutos, Lydia and Schröer, Jannick},
+  title = {Baboon Simulation},
+  year = {2025},
+  howpublished = {\url{https://github.com/IQisMySenpai/baboon-simulation}},
+  note = {Accessed: 2025-05-11}
+}
+
+
+@book{oksendal2003stochastic,
+  author = {{\O}ksendal, Bernt},
+  day = 21,
+  edition = {6th},
+  howpublished = {Paperback},
+  isbn = {3540047581},
+  month = jan,
+  publisher = {Springer},
+  timestamp = {2019-08-24T00:34:38.000+0200},
+  title = {{Stochastic Differential Equations: An Introduction with Applications (Universitext)}},
+  year = 2014,
+  url = https://doi.org/10.1007/978-3-642-14394-6,
+}
+
+@misc{chen2019neuralordinarydifferentialequations,
+      title={Neural Ordinary Differential Equations}, 
+      author={Ricky T. Q. Chen and Yulia Rubanova and Jesse Bettencourt and David Duvenaud},
+      year={2019},
+      eprint={1806.07366},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/1806.07366}, 
+}
+
+@misc{kidger2021neuralsdesinfinitedimensionalgans,
+      title={Neural SDEs as Infinite-Dimensional GANs}, 
+      author={Patrick Kidger and James Foster and Xuechen Li and Harald Oberhauser and Terry Lyons},
+      year={2021},
+      eprint={2102.03657},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2102.03657}, 
+}
+\end{filecontents}
+
+% ===== TOC =====
+\settocdepth{chapter} % or \maxtocdepth{chapter}
+
+% ===== Document =====
+\begin{document}
+
+\title{Baboon simulation report}
+\author{
+    Carpio Chicote, Álvaro \\ \texttt{acarpio@student.ethz.ch}
+    \and
+    Cuesta Sierra, Pablo \\ \texttt{cuestap@student.ethz.ch}
+    \and 
+    Romero de Frutos, Lydia \\ \texttt{romerol@student.ethz.ch}
+    \and Schröer, Jannick \\ \texttt{jschroeer@student.ethz.ch}
+}
+\date{\today}
+\maketitle
+
+This document is a report on the baboon simulation project. It contains the details of the simulation software and procedure that we have developed in our project to simulate the movements of a group of baboons in a 2 dimensional space according to the model proposed by \cite{StrandburgPeshkin2015}.
+
+The code can be found in our GitHub repository \cite{github:baboon-simulation} and it is self-explanatory. Classes and functions are documented with docstrings. This document is a curated compilation of the most relevan information from said docstrings. 
+
+\chapter{Model description}
+
+% We are going to use weak (non-interpreter-enforced) protocols to define
+% objects. Further down the line we could eventually use proper protocols
+% \url{https://peps.python.org/pep-0544/}, but objects right now are too simple to
+% require other machinery such as classes.
+% Refer to \url{https://peps.python.org/pep-0020/} (``Simple is better than complex'').
+
+% Here is the documentation for said objects.
+We first present the main objects of the simulation: how we represent the baboons trajectories.
+
+\section{Baboon trajectories}
+
+\begin{itemize}
+    \item \texttt{baboons}: $(M, 2)$-(shaped-)\texttt{np.ndarray} (i.e., $M \times 2$ matrix)
+    \begin{itemize}
+        \item $M$ is the number of baboons.
+        \item $2$ is the $x_1$ and $x_2$ coordinates of the baboon.
+    \end{itemize}
+    
+    \item \texttt{x} = \texttt{baboons\_trajectory}: $(N, M, 2)$-\texttt{np.ndarray} (i.e., $N \times M \times 2$ matrix)
+    \begin{itemize}
+        \item $N$ is the number of steps.
+        \item $M$ is the number of baboons.
+        \item $2$ is the $x_1$ and $x_2$ coordinates of the baboon.
+    \end{itemize}
+    For example, \texttt{baboons\_trajectory[t, i]}\(\in\mathbb{R}^2\) is the position of baboon $i$ at time $t$.
+\end{itemize}
+
+\section{SDE Model}
+
+The $i$-th baboon position is given by the following Stochastic Differential
+Equation (SDE):
+
+\begin{equation}
+    d\texttt{x}^i = f^i(\texttt{x}[:t], \omega) dt + g^i(\texttt{x}[:t], \omega) \cdot dW^i_t(\omega),
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\texttt{x}^i$ is the full trajectory \texttt{x[:, i]} of baboon $i$.
+    \item \texttt{x}$[:t]$ is the full trajectory of all baboons up to time $t$.
+        It is a $(t, M, 2)$-\texttt{np.ndarray}.
+    \item $f(\texttt{x}[:t], \omega) = (f^1(\texttt{x}[:t], \omega), \dots, f^M(\texttt{x}[:t], \omega))$ is the \textbf{DRIFT} of the SDE.
+        \(f^i\in\mathbb R^2\) denotes the average change in position of baboon $i$.
+        This term may include a random component (thus the dependency on
+        $\omega$). We can interpret this random component as the randomness included in the baboon decision-making process.
+        $f$ outputs an $(M, 2)$-\texttt{np.ndarray}.
+    \item $g(\texttt{x}[:t], \omega) = (g^1(\texttt{x}[:t], \omega), \dots, g^M(\texttt{x}[:t], \omega))$ is the \textbf{DIFFUSION} of the SDE.
+        \(g^i\in\mathbb R^{2\times J}\) for each $i$.
+        $g$ outputs an $(M, 2, J)$-\texttt{np.ndarray}.
+    \item $W_t$ is an $M \times J$-dimensional Brownian motion. $W^i_t\in \mathbb{R}^J$ and \(g^i\cdot W^i_t\in\mathbb{R}^2\) can be interpreted as the noisy component of the baboon's movement. 
+\end{itemize}
+
+In practice, this will be implemented with an Euler scheme:
+\begin{equation}
+    \texttt{x}[t+1] = \texttt{x}[:t] + f(\texttt{x}[:t]) \cdot \Delta t + g(\texttt{x}[:t]) \cdot \Delta W_t,
+\end{equation}
+where $\Delta t$ is the fixed time step size and $\Delta W_t$ is a normal random variable
+with mean $0$ and variance $\Delta t$ (each coordinate and each realization of the increments $\Delta W_t,\Delta W_{t+\Delta t},\dots$ are all independent). Multiplication ``$\cdot$'' here is supposed to be in a
+matrix sense for each baboon:
+\begin{equation}
+    g(\texttt{x}[:t]) \cdot dW_t = \texttt{np.einsum("mij, mj -> mi",}\ g(\texttt{x}[:t]),\ \Delta W_t\texttt{)}.
+\end{equation}
+
+In general, we will choose \(J = 2\) for the dimension of the Brownian motion driving each baboon's SDE. This is a reasonable choice as the baboons move in a 2D space. Moreover, we will in general have 
+\[
+    g^i(\texttt{x}[:t], \omega) = \underbrace{\sigma(\texttt{x}[:t])}_{\in\mathbb R} I_{2\times 2},
+\]
+so that the noisy term of the equation is isotropic. This means that the baboon's movement is equally likely in all directions. $\sigma$ is a scalar function that depends on the baboons' trajectory up to time $t$.
+
+We will use the following notation in the code:
+\begin{itemize}
+    \item $f \equiv \texttt{drift}$
+    \item $g \equiv \texttt{diffusion}$
+    \item \texttt{x}[:t] $\equiv \texttt{baboons\_trajectory[:t]}$
+\end{itemize}
+
+\paragraph{Note} We could be more general, and put the output of the diffusion function to be
+$(M, 2, J, 2)$-shaped and the BM, $(J, 2)$-shaped, and their multiplication is done
+with Einstein summation convention: \texttt{mijk, jk $\rightarrow$ mi}. This would allow for the driver \((W_t)\) of the equation to affect different baboons jointly. This would overcomplicate the model in our case, but it could be explored for other models and maybe to apply neural networks to learn the SDE expression as in \cite{chen2019neuralordinarydifferentialequations, kidger2021neuralsdesinfinitedimensionalgans}.
+
+\printbibliography
+
+\end{document}
