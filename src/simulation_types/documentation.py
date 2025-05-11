@@ -83,8 +83,8 @@ DriftDiffusionWithStateType = Callable[
     ],
     # (output of drift, output of diffusion, next_state)
     tuple[
-        npt.NDArray[np.float64],  # (n_baboons, 2)
-        npt.NDArray[np.float64],  # (n_baboons, 2, J)
+        npt.NDArray[np.float64],  # shape (n_baboons, 2)
+        npt.NDArray[np.float64],  # shape (n_baboons, 2, J)
         Bunch,
     ],
 ]

@@ -2,9 +2,9 @@ import numpy as np
 from enum import Enum
 from sklearn.utils import Bunch
 import numpy.typing as npt
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 from simulation_types.documentation import DriftDiffusionWithStateType
-from utils.baboons import get_angles, get_differences, get_distances
+from utils.baboons import get_angles, get_distances
 
 
 class State(Enum):

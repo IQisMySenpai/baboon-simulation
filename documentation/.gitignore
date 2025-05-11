@@ -46,3 +46,5 @@
 .mtc
 build/
 buildlatex/
+_minted-report/
+!report.pdf

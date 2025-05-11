@@ -24,7 +24,7 @@ class State(Enum):
     group_influence = 2
     still = 3
     random_walk = 4
-    target = 5  # Used for baboons in random_walk state to choose a target
+    target = 5
 
 
 def state_driven_drift_diffusion_with_targets_function(
@@ -135,14 +135,6 @@ def state_driven_drift_diffusion_with_targets_function(
         DriftDiffusionWithStateType: A callable that computes the drift vector,
         diffusion matrix, and updated internal state for all baboons given
         their trajectory history and a random generator.
-
-    Notes:
-        - In random_walk state, baboons move with a persistent random drift
-            direction plus diffusion.
-        - The internal state includes an additional field `random_walk_drift`
-            to store assigned random walk drifts.
-        - In the following state, baboons follow a target baboon which has to
-            be far enough and in random_walk state.
     """
 
     if state_probabilities is None:

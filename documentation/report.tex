@@ -8,6 +8,7 @@
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{enumitem}
+\usepackage[outputdir=./buildlatex]{minted} % Adjust path as needed
 
 % ===== References =====
 
@@ -26,6 +27,17 @@
   doi={10.1126/science.aaa5099},
   url={https://www.science.org/doi/10.1126/science.aaa5099}
 }
+@manual{pythonTyping,
+  title        = {typing --- Support for type hints},
+  author       = {{Python Software Foundation}},
+  year         = {2024},
+  note         = {Python 3 Standard Library Documentation},
+  url          = {https://docs.python.org/3/library/typing.html},
+  organization = {Python Software Foundation},
+  howpublished = {\url{https://docs.python.org/3/library/typing.html}},
+  keywords     = {Python, type hints, typing}
+}
+
 
 @misc{github:baboon-simulation,
   author = {Carpio Chicote, Álvaro and Cuesta Sierra, Pablo and Romero de Frutos, Lydia and Schröer, Jannick},
@@ -72,7 +84,7 @@
 \end{filecontents}
 
 % ===== TOC =====
-\settocdepth{chapter} % or \maxtocdepth{chapter}
+% \settocdepth{chapter} % or \maxtocdepth{chapter}
 
 % ===== Document =====
 \begin{document}
@@ -91,7 +103,9 @@
 
 This document is a report on the baboon simulation project. It contains the details of the simulation software and procedure that we have developed in our project to simulate the movements of a group of baboons in a 2 dimensional space according to the model proposed by \cite{StrandburgPeshkin2015}.
 
-The code can be found in our GitHub repository \cite{github:baboon-simulation} and it is self-explanatory. Classes and functions are documented with docstrings. This document is a curated compilation of the most relevan information from said docstrings. 
+The code can be found in our GitHub repository \cite{github:baboon-simulation} and it is self-explanatory. Classes and functions are documented with docstrings and the \texttt{README} file in the repository has a guide to the code structure. This document is a curated compilation of the most relevant information from said docstrings.
+
+\tableofcontents*
 
 \chapter{Model description}
 
@@ -147,8 +161,8 @@ where:
     \item $W_t$ is an $M \times J$-dimensional Brownian motion. $W^i_t\in \mathbb{R}^J$ and \(g^i\cdot W^i_t\in\mathbb{R}^2\) can be interpreted as the noisy component of the baboon's movement. 
 \end{itemize}
 
-In practice, this will be implemented with an Euler scheme:
-\begin{equation}
+In practice, this will be implemented with an Euler-Maruyama scheme:
+\begin{equation}\label{eq:euler-maruyama}
     \texttt{x}[t+1] = \texttt{x}[:t] + f(\texttt{x}[:t]) \cdot \Delta t + g(\texttt{x}[:t]) \cdot \Delta W_t,
 \end{equation}
 where $\Delta t$ is the fixed time step size and $\Delta W_t$ is a normal random variable
@@ -174,6 +188,329 @@ We will use the following notation in the code:
 \paragraph{Note} We could be more general, and put the output of the diffusion function to be
 $(M, 2, J, 2)$-shaped and the BM, $(J, 2)$-shaped, and their multiplication is done
 with Einstein summation convention: \texttt{mijk, jk $\rightarrow$ mi}. This would allow for the driver \((W_t)\) of the equation to affect different baboons jointly. This would overcomplicate the model in our case, but it could be explored for other models and maybe to apply neural networks to learn the SDE expression as in \cite{chen2019neuralordinarydifferentialequations, kidger2021neuralsdesinfinitedimensionalgans}.
+
+\chapter{Simulation}
+
+We have implemented an Euler-Maruyama solver for the SDE simulation \eqref{eq:euler-maruyama}.
+While formally the SDE that we are solving here is equivalent to \eqref{eq:euler-maruyama}, for convinience we will encode information of the baboons' trajectory and random choices into a ``state'' object. This state object will be passed to the drift and diffusion functions, which will be called at each time step and will also output the updated state. This allows us to keep
+track of the baboons' trajectory and random choices without having to re-compute trajectory information at each time step.
+This solver takes as input:
+\begin{itemize}
+    \item \texttt{total\_time\_steps}: Total number of simulation steps.
+    
+    \item \texttt{initial\_baboons}: Initial positions of baboons. Shape: $(n\_baboons, 2)$. We typically use a normal distribution with mean $0$ and fixed standard deviation for the initial positions.
+    
+    \item \texttt{dt}: Time step size.
+    
+    \item \texttt{seed}: Random seed for reproducibility. This means that a call to the solver with exactly the same parameters will yield the same result.
+    
+    \item \texttt{drift\_diffusion\_with\_state}: Callable function that takes the
+        baboons trajectory, random generator, and state as input
+        and returns the drift, diffusion, and next state. This function will be called at each time step of the solver.
+
+To be more precise, the \texttt{drift\_diffusion\_with\_state} has the following signature (using the \texttt{typing} \cite{pythonTyping} notation):
+\begin{minted}{python}
+from typing import Callable, Optional, Tuple
+import numpy as np
+import numpy.typing as npt
+from sklearn.utils import Bunch
+
+DriftDiffusionWithStateType = Callable[
+    [
+        # baboons_trajectory[:t], shape (t, n_baboons, 2)
+        npt.NDArray[np.float64],
+        # random generator (this is the omega)
+        np.random.Generator,
+        # state (if None, it will be initialized)
+        Optional[Bunch],
+    ],
+    Tuple[
+        # output of drift function, shape (n_baboons, 2)
+        npt.NDArray[np.float64],
+        # output of diffusion function, shape (n_baboons, 2, J)
+        npt.NDArray[np.float64],
+        # next state, shape (n_baboons, 2)
+        Bunch,
+    ],
+]
+\end{minted}
+\end{itemize}
+
+In the following sections we will see the form that the state object takes.
+
+\chapter{Instances of drift and diffusion functions with state}
+
+We have coded two main versions of the drift and diffusion functions with state. The second one utilizes the concept of ``targets'', which represent coordinates in the 2D space that the baboons are trying to reach (e.g. food or water sources). The first one is a simple version that does not use targets.
+
+These functions are relatively complex, but their docstrings explain the behaviour comprehensively. Thus, we directly refer to the docstrings of the functions for a detailed explanation of their behaviour. 
+
+\section{Drift and diffusion without targets}
+
+\begin{minted}{python}
+
+class State(Enum):
+    """State of the baboon.
+    The baboon can be in one of the following states:
+        - following: The baboon is following another baboon.
+        - group_influence: The baboon is influenced by the group
+            (choose a random angle pointing to another).
+        - still: The baboon is not moving (maybe only moving with
+            a small perturbation).
+        - random_walk: The baboon is doing a random walk (i.e.
+            exploring on its own) with drift. The drift is randomly
+            assigned at the beginning of the random walk and is
+            kept until the baboon changes state.
+    """
+    following = 1
+    group_influence = 2
+    still = 3
+    random_walk = 4
+
+
+def state_driven_drift_diffusion_function(
+    angle_std: float,
+    group_influence_step_length: float,
+    random_walk_step_length: float,
+    random_walk_step_length_std: float,
+    min_follow_distance: float,
+    max_follow_distance: float,
+    max_follow_step: float,
+    state_diffusion_constants: dict[State, float],
+    following_step_length_std: float = 0.2,
+    following_step_length_proportion: float = 0.1,
+    following_radius: float = 1.0,
+    state_probabilities: Optional[dict[State, float]] = None,
+    state_countdown_means: Optional[dict[State, float]] = None,
+    probability_repeat_random_walk: float = 0.0,
+    choose_drift_from_other_random_walkers: bool = True,
+    new_random_walk_drift_angle_std: float = 10 * np.pi / 180,
+) -> DriftDiffusionWithStateType:
+    """
+    Creates a drift + diffusion function where each baboon acts according to
+    an internal state.
+
+    Each baboon can be in one of four states: following, group_influence,
+    still, or random_walk. State transitions occur after a countdown, drawn
+    from a Poisson distribution + 1.
+
+    Args:
+        angle_std (float): Standard deviation for angular perturbations in
+            group_influence state.
+        group_influence_step_length (float): Base step length for
+            group_influence.
+        random_walk_step_length (float): base step length for random walk
+            drift.
+        random_walk_step_length_std (float): Standard deviation of noise added
+            to random walk step size.
+        min_follow_distance (float): Minimum distance between two baboons for
+            one to follow the other.
+        max_follow_distance (float): Maximum distance between two baboons for
+            one to follow the other.
+        max_follow_step (float): Maximum step size a baboon can take while
+            following another baboon.
+        following_radius (float): Radius up to which a baboon is satisfied with
+            its following target. If the distance to the target is smaller than
+            this radius, the baboon will move in the opposite direction.
+        state_diffusion_constants (dict[State, float]): Diffusion coefficient
+            for each state.
+        following_step_length_std (float): Standard deviation of noise added to
+            following step size.
+        following_step_length_proportion (float): Proportion of the distance to
+            the target used as a base for following step size.
+        state_probabilities (Optional[dict[State, float]]):
+            A dictionary mapping each State to its probability when sampling
+            new states. If None, defaults to equal probability for all states.
+        state_countdown_means (Optional[dict[State, float]]):
+            Dictionary specifying Poisson means for each state.
+            Defaults to 20 for all states.
+        probability_repeat_random_walk (float): Probability of repeating the
+            random walk state when transitioning from random_walk to another
+            state.
+        choose_drift_from_other_random_walkers (bool): If True, when a baboon
+            transitions to the random_walk state, it will choose a drift from
+            another baboon that is already in random_walk state plus some angle
+            perturbation. If False, the baboon will choose a random drift
+            direction.
+        new_random_walk_drift_angle_std (float): Standard deviation of the
+            angle perturbation for the new random walk drift. This is used when
+            a baboon transitions to the random_walk state and is assigned a
+            drift based on an existing random walker. The angle is perturbed
+            by a normal distribution with this standard deviation.
+
+    Returns:
+        DriftDiffusionWithStateType: A callable that computes the drift vector,
+        diffusion matrix, and updated internal state for all baboons given
+        their trajectory history and a random generator.
+
+    Notes:
+        - In random_walk state, baboons move with a persistent random drift
+            direction plus diffusion.
+        - The internal state includes an additional field `random_walk_drift`
+            to store assigned random walk drifts.
+        - In the following state, baboons follow a target baboon which has to
+            be far enough and in random_walk state.
+    """
+\end{minted}
+
+Here the state object has the form:
+\begin{minted}{python}
+state_bunch: Bunch(
+    state: npt.NDArray(shape=n_baboons, dtype=State),
+    following_idx: npt.NDArray(shape=n_baboons, dtype=int),
+    state_countdown: npt.NDArray(shape=n_baboons, dtype=int),
+    random_walk_drift: npt.NDArray(shape=(n_baboons, 2), dtype=float),
+)
+\end{minted}
+
+\section{Drift and diffusion with targets}
+
+This version of the drift and diffusion function is a modified version of the previous one. It includes the concept of targets, which represent coordinates in the 2D space that the baboons are trying to reach (e.g. food or water sources).
+
+\begin{minted}{python}
+class State(Enum):
+    """State of the baboon.
+    The baboon can be in one of the following states:
+        - following: The baboon is following another baboon.
+        - group_influence: The baboon is influenced by the group (choose a
+            random angle pointing to another).
+        - still: The baboon is not moving (maybe only moving with a small
+            perturbation).
+        - random_walk: The baboon is doing a random walk (i.e. exploring on its
+            own) with drift. The drift is randomly assigned at the beginning of
+            the random walk and is kept until the baboon changes state.
+        - target: The baboon is moving towards a target in the targets array.
+    """
+    following = 1
+    group_influence = 2
+    still = 3
+    random_walk = 4
+    target = 5
+
+
+def state_driven_drift_diffusion_with_targets_function(
+    angle_std: float,
+    group_influence_step_length: float,
+    random_walk_step_length: float,
+    random_walk_step_length_std: float,
+    min_follow_distance: float,
+    max_follow_distance: float,
+    max_follow_step: float,
+    state_diffusion_constants: dict[State, float],
+    targets: npt.NDArray[np.float64],
+    following_step_length_std: float,
+    following_step_length_proportion: float,
+    following_radius: float,
+    target_radius: float,
+    n_max_targets: int = 7,
+    state_probabilities: Optional[dict[State, float]] = None,
+    state_countdown_means: Optional[dict[State, float]] = None,
+    probability_repeat_random_walk: float = 0.0,
+    choose_drift_from_other_random_walkers: bool = True,
+    new_random_walk_drift_angle_std: float = 10 * np.pi / 180,
+    new_target_noise_std: float = 5.0,
+) -> DriftDiffusionWithStateType:
+    """
+    Creates a drift + diffusion function where each baboon acts according to
+    an internal state.
+
+    Each baboon can be in one of four states: following, group_influence,
+    still, or random_walk. State transitions occur after a countdown, drawn
+    from a Poisson distribution.
+
+    Args:
+        angle_std (float): Standard deviation for angular perturbations in
+            group_influence state.
+        group_influence_step_length (float): Base step length for
+            group_influence.
+        random_walk_step_length (float): base step length for random walk
+            drift.
+        random_walk_step_length_std (float): Standard deviation of noise added
+            to random walk step size.
+        min_follow_distance (float): Minimum distance between two baboons for
+            one to follow the other.
+        max_follow_distance (float): Maximum distance between two baboons for
+            one to follow the other.
+        max_follow_step (float): Maximum step size a baboon can take while
+            following another baboon.
+        following_radius (float): Radius up to which a baboon is satisfied with
+            its following target. If the distance to the target is smaller than
+            this radius, the baboon will move in the opposite direction.
+        state_diffusion_constants (dict[State, float]): Diffusion coefficient
+            for each state.
+        following_step_length_std (float): Standard deviation of noise added to
+            following step size.
+        following_step_length_proportion (float): Proportion of the distance to
+            the target used as a base for following step size.
+        state_probabilities (Optional[dict[State, float]]):
+            A dictionary mapping each State to its probability when sampling
+            new states. If None, defaults to equal probability for all states.
+        state_countdown_means (Optional[dict[State, float]]):
+            Dictionary specifying Poisson means for each state.
+            Defaults to 20 for all states.
+        probability_repeat_random_walk (float): Probability of repeating the
+            random walk state when transitioning from random_walk to another
+            state.
+        choose_drift_from_other_random_walkers (bool): If True, when a baboon
+            transitions to the random_walk state, it will choose a drift from
+            another baboon that is already in random_walk state plus some angle
+            perturbation. If False, the baboon will choose a random drift
+            direction.
+        new_random_walk_drift_angle_std (float): Standard deviation of the
+            angle perturbation for the new random walk drift. This is used when
+            a baboon transitions to the random_walk state and is assigned a
+            drift based on an existing random walker. The angle is perturbed
+            by a normal distribution with this standard deviation.
+        targets (npt.NDArray[np.float64]): Array of target
+            coordinates (n_targets, 2). If provided, target-state baboons will
+            move towards these targets as a drift vector. The target is chosen
+            if it is the closest to the baboon's current position. After a
+            target is chosen by a target-state baboon, only following baboons
+            which have not come close enough to the target will be able to
+            choose this target-state baboon it as a following target.
+
+            Logic is as follows:
+            - If a baboon is in target-state, it will choose the first
+                target and move towards it until it is close enough
+                (determined by the baboon's target_radius).
+                After it is close enough to the target, it will select next
+                target from the list of targets and move towards it (and so
+                on until the target-state runs out). Next time that the
+                baboon is in target-state, it will choose the first target
+                that it has not yet visited (i.e. gotten close to according
+                to target_radius).
+            - If a baboon is in following-state, it will choose to follow
+                baboons that are in target-state or random_walk-state but
+                discarding baboons in target-state which are going towards
+                target that the follower has already yet visited (i.e. the
+                follower did not yet get close enough to yet according to
+                target_radius). If no baboon is available to follow, the
+                baboon will become target-state.
+            At the end fo the loop, the state will keep an array of
+            visited_targets = np.array((n_baboons, n_targets), dtype=bool)
+            where each baboon will have a boolean array of size n_targets
+            indicating whether it has already visited the target or not (i.e.
+            gotten closer to it than target_radius).
+
+    Returns:
+        DriftDiffusionWithStateType: A callable that computes the drift vector,
+        diffusion matrix, and updated internal state for all baboons given
+        their trajectory history and a random generator.
+    """
+\end{minted}
+
+Here the state object has more information to track targets and target visits:
+\begin{minted}{python}
+state_bunch: Bunch(
+    state: npt.NDArray(shape=n_baboons, dtype=State),
+    following_idx: npt.NDArray(shape=n_baboons, dtype=int),
+    state_countdown: npt.NDArray(shape=n_baboons, dtype=int),
+    random_walk_drift: npt.NDArray(shape=(n_baboons, 2), dtype=float),
+    targets: npt.NDArray(shape=(n_targets, 2), dtype=float),
+    visited_targets: npt.NDArray(shape=(n_baboons, n_targets), dtype=bool),
+)
+\end{minted}
+
+For more details on the behaviour of this function, please refer to the code \cite{github:baboon-simulation}.
 
 \printbibliography
 
