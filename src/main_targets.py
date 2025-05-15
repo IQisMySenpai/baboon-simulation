@@ -21,10 +21,10 @@ OUT_DIR = os.path.join(THIS_DIR, "../outputs")
 if __name__ == "__main__":
 
     # ######################## SIMULATION PARAMETERS ##########################
-    seed = 924362874
+    seed = 92213214
     total_time_steps = 16000
-    n_baboons = 15  # 33
-    scale = 80  # std of the normal distribution to generate initial positions
+    n_baboons = 16  # 33
+    scale = 200  # std of the normal distribution to generate initial positions
     np.random.seed(seed)
     initial_baboons = (
         np.array([-100, -100])
@@ -45,7 +45,7 @@ if __name__ == "__main__":
             angle_std=50 * np.pi / 180,
             group_influence_step_length=0.4,
             random_walk_step_length=0.4,
-            random_walk_step_length_std=0.2,
+            random_walk_step_length_std=0.05,
             min_follow_distance=0.0,
             max_follow_distance=150.0,
             max_follow_step=0.4,
@@ -65,20 +65,20 @@ if __name__ == "__main__":
                 State.random_walk: 0.2,
                 State.target: 0.2,
             },
-            state_probabilities={  # probability to choose each state
-                State.following: 0.65,
-                State.group_influence: 0,
-                State.still: 0,
-                State.random_walk: 0.2,
-                State.target: 0.15,
-            },
             probability_repeat_random_walk=0,
+            state_probabilities={  # probability to choose each state
+                State.following: 0.4,
+                State.group_influence: 0.05,
+                State.still: 0.2,
+                State.random_walk: 0.05,
+                State.target: 0.3,
+            },
             state_countdown_means={  # average time-steps in each state
                 State.following: 200,
-                State.group_influence: 0,
-                State.still: 30,
-                State.random_walk: 50,
-                State.target: 200,
+                State.group_influence: 200,
+                State.still: 500,
+                State.random_walk: 200,
+                State.target: 250,
             },
         )
     )
@@ -106,9 +106,10 @@ if __name__ == "__main__":
         ylim=(-400, 1000),
     )
     visualizer.save(
-        baboons_trajectory=baboons_trajectory[::2],  # Save every x-th frame
+        baboons_trajectory=baboons_trajectory[1000:11000:40],  # Save every x-th frame
         colors=colors,
-        filename=os.path.join(OUT_DIR, "baboons_visualization"),
-        fps=15,
+        filename=os.path.join(OUT_DIR, "target_based"),
+        fps=10,
+        file_format="gif",
         dpi=100,
     )
