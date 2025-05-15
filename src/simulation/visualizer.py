@@ -33,7 +33,7 @@ class PointVisualizer(SimOutput):
         self.scat = self.ax.scatter(
             [],
             [],
-            s=30,
+            s=100,
             facecolors=[],  # inside color
             edgecolors=[] ,  # border color
             marker='.',  # either 'o' or '.', depending what size you want
